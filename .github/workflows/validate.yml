@@ -40,10 +40,13 @@ jobs:
         run: python tools/validate.py --check-template
 
       - name: Generate an ephemeral signing key (CI only, never persisted)
-        run: python tools/make-ci-key.py .keys/ci.key
+        run: python tools/make-ci-key.py --output-dir .keys/ci --ephemeral
 
       - name: Pack and verify every agent
-        run: python tools/ci-pack-all.py --out dist --key .keys/ci.key
+        run: python tools/ci-pack-all.py --out dist --key .keys/ci/registry.key
+
+      - name: Tamper-detection self test
+        run: python tools/selftest.py --key .keys/ci/registry.key
 
       - name: Build the index and validate it against the schema
         run: |

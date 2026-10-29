@@ -34,6 +34,11 @@
       "constraints": { "max_skills": null, "forbidden_permissions": [] }
     }
   },
+  "tier_semantics": {
+    "$comment": "tier is a CAPABILITY level, not a trust level. It is derived from the agent's own declarations and is never rendered as an official or verified badge. The values are deliberately disjoint from the main repo's official/community vocabulary.",
+    "is_trust_level": false,
+    "renders_as_badge": false
+  },
   "tags": [
     "automation",
     "code-review",
@@ -69,5 +74,17 @@
     "com.acowork.",
     "acowork.",
     "official."
-  ]
+  ],
+  "package_policy": {
+    "$comment": "An agent package contains no binaries. Its capability surface is exactly prompt + skills + tools + mcp; any binary capability is reached through an stdio MCP server that lives outside the package.",
+    "allowed_top_level": ["manifest.toml", "README.md", "LICENSE", "prompts", "skills", "assets"],
+    "forbidden_suffixes": [
+      ".exe", ".dll", ".so", ".dylib", ".bin", ".class", ".jar", ".wasm",
+      ".msi", ".deb", ".rpm", ".app", ".pyc", ".pyd", ".node"
+    ],
+    "mcp_declaration": {
+      "note": "MCP servers are referenced by name only. A package declares the MCP tools it wants; the server binary and its stdio transport configuration are supplied by the runtime, never shipped inside the package.",
+      "tool_prefix": "mcp_"
+    }
+  }
 }

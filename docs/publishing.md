@@ -35,7 +35,7 @@ a package, a checksum, a signature or an index.
    - `index.json`,
    - every `<agent_id>.agent` package,
    - every `<agent_id>.agent.sha256` checksum file,
-   - the per-agent `<agent_id>.attrs.json` signed-attribute blobs.
+   - `SHA256SUMS` over all packages.
 
 The release is the single distribution point for the community registry.
 
@@ -43,13 +43,13 @@ The release is the single distribution point for the community registry.
 
 - The Ed25519 seed is a repository secret (`ACOWORK_AGENTS_SIGNING_KEY`), a
   raw 32-byte file.
-- The corresponding public key is **published** in the repository
-  (`registry/registry.pub`, see `registry/README.md`) so anyone can verify
-  that a package was signed by the registry key.
-- A published package's signature proves: *the registry signed these exact
-  bytes, and these are the identity/capability claims that were signed.*
-  It does not prove the publisher is a real person. See
-  [`signed-attributes-v2.md`](signed-attributes-v2.md).
+- The corresponding public key and its fingerprint are **published** in
+  [`registry/trusted-keys.json`](../registry/trusted-keys.json) so anyone
+  can check that a package was signed by the official channel key.
+- A published package's signature proves two things: *these exact bytes were
+  signed by the official channel key, and they have not been altered since*.
+  It does not prove the publisher is a real person, and it says nothing
+  about the agent's quality. See [`trust-model.md`](trust-model.md).
 
 ## How the website consumes this repo
 
@@ -133,28 +133,35 @@ this round so the pipeline could be built; they are expected to be revisited.
    the registry accept copyleft or source-available agent licenses, or
    restrict agents to permissive licenses only? Current policy accepts them
    with a declaration.
-2. **CA governance** **[assumed: out of scope for this round]** — who runs the
-   publisher CA, what is the root store's distribution and pinning story, and
-   what is the revocation procedure? The v2 attribute format has room for it
-   (`publisher.self_declared`, `identity = CaIssued`), but no governance
-   model exists yet.
-3. **The `tier` field collision** **[assumed: rename on the website side]** —
+2. **The `tier` field collision** **[assumed: rename on the website side]** —
    the platform catalogue and the community catalogue use `tier` for
-   different things. Proposal: rename the platform's to `provenance` and keep
-   `tier` as capability level everywhere. Not yet agreed.
-4. **Deprecated flag** **[assumed: `deprecated = true` in the manifest]** —
+   different things (main repo: `official` / `community`; here: capability
+   level `core` / `extended` / `advanced`). Proposal: rename the platform's
+   to `provenance` and keep `tier` as capability level everywhere. Not yet
+   agreed. Until then, the website must not offer a `tier` filter that mixes
+   the two vocabularies.
+3. **Deprecated flag** **[assumed: `deprecated = true` in the manifest]** —
    needs a schema addition and index handling.
-5. **Registry key rotation** **[assumed: not yet supported]** — packages
-   signed by a rotated-away key should remain verifiable. Requires a keyring
-   in the verifier.
-6. **Per-agent signature requirement** **[assumed: the registry signs]** —
-   today the registry key signs every package, and the publisher's own key
-   only appears as an optional `publisher.key_fingerprint`. If contributors
-   should sign their own packages instead, the release flow changes
-   materially (the registry would need to accept an externally produced
-   package).
-7. **Rate limits and spam** **[assumed: label-based review only]** — no
-   automated abuse controls yet.
-8. **Yanked packages** **[assumed: removal only]** — a package that turns out
+4. **Registry key rotation** **[assumed: supported via `status: revoked`]** —
+   the trusted key set keeps old keys listed; revoking one stops it counting
+   as the official channel. What is still undefined is how a *consumer* that
+   only has a package (no index) decides whether a revoked key matters, and
+   whether a revocation list needs to be distributed alongside the index.
+5. **Yanked packages** **[assumed: removal only]** — a package that turns out
    to be malicious should be pulled from the index without deleting history;
    the mechanism (a revocation list consumed by the website) is undefined.
+6. **Per-publisher signing** **[assumed: the registry signs]** — today the
+   registry key signs every package. If contributors should also sign their
+   own packages, the release flow changes materially and the trusted key set
+   would need to distinguish channel keys from publisher keys.
+7. **Trust anchor distribution** **[assumed: the trusted key set lives in
+   this repository]** — a consumer that reads `registry/trusted-keys.json`
+   from this repo trusts the repo. Pinning the key set in `acowork-node`
+   instead would make the trust anchor independent of the repository, at the
+   cost of a slower update path.
+8. **CA / publisher identity** **[assumed: out of scope]** — the main repo's
+   `verify_chain` is still a stub and there is no governance model for a
+   publisher CA. Revisit if agents ever carry executable code, if third-party
+   mirrors appear, or if publishing is split per publisher.
+9. **Rate limits and spam** **[assumed: label-based review only]** — no
+   automated abuse controls yet.

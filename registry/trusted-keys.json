@@ -1,0 +1,14 @@
+{
+  "$comment": "Trust anchors for the official distribution channel. A package counts as official-channel when it verifies AND its signer fingerprint appears here with status 'active'. This is a distribution marker, not an endorsement of the agent's quality. See docs/trust-model.md.",
+  "schema_version": 1,
+  "channel": "acowork-official",
+  "keys": [
+    {
+      "key_id": "acowork-official-2025-10",
+      "fingerprint": "a854ecdac163e56b3538f3a9005c9309a23619483e6717b8bb0d77baefb4ee4f",
+      "public_key": "f2877cb88f9c51e78f0171ed56fe033a718d36b791553c7db59256188bcfd435",
+      "label": "ACowork official channel key, generated 2025-10",
+      "status": "active"
+    }
+  ]
+}

@@ -1,37 +1,78 @@
-# Registry key material
+# registry/
 
-The registry signs published packages with a single Ed25519 key so that a
-client can check "this package came from the registry pipeline" without
-trusting the publisher.
+Trust anchors for the official distribution channel.
 
-| File | Committed? | What it is |
-|---|---|---|
-| `registry/registry.pub` | yes | The raw 32-byte public key (hex). Anyone can verify a package against it. |
-| private seed | **never** | Stored only as the repository secret `ACOWORK_AGENTS_SIGNING_KEY` (base64 of the raw 32-byte seed). |
+## trusted-keys.json
 
-## Status
+The list of public keys whose signatures mark a package as **distributed
+through the official channel**. A consumer checks a package's signer
+fingerprint against this list.
 
-`registry/registry.pub` is provisioned together with the secret. Until it
-exists, the publish workflow fails loudly:
+The file holds **public keys and fingerprints only**. The private signing
+key never enters this repository — it lives in a CI secret.
 
+### Fields
+
+```json
+{
+  "schema_version": 1,
+  "channel": "acowork-official",
+  "keys": [
+    {
+      "key_id": "acowork-official-2025-10",
+      "fingerprint": "<sha256 of the raw 32-byte public key, hex>",
+      "public_key": "<raw 32-byte public key, hex>",
+      "label": "ACowork official channel, key generated 2025-10",
+      "status": "active"
+    }
+  ]
+}
 ```
-::error::secret ACOWORK_AGENTS_SIGNING_KEY is not configured
+
+`fingerprint` is SHA-256 over the raw 32-byte public key, hex-encoded. This
+matches the format the main repo's `acowork-verify` prints, so the value can
+be compared directly against its output.
+
+`status` is either `active` (counts as the official channel) or `revoked`
+(does not count; kept for the record so it is clear *why* a package is no
+longer official-channel).
+
+### Bootstrap
+
+To add a key:
+
+```bash
+# 1. Generate the keypair. The private key goes straight into a CI secret;
+#    only the public key is committed.
+python tools/make-ci-key.py --output-dir .keys
+# -> .keys/registry.key   (private, NEVER commit)
+# -> .keys/registry.pub   (public, commit the hex form)
+
+# 2. Add the public key to registry/trusted-keys.json:
+#    key_id     — a stable name for this key, e.g. acowork-official-2025-10
+#    fingerprint— sha256 of the raw public key, hex
+#    public_key — the raw public key, hex
+#    status     — "active"
+
+# 3. Store .keys/registry.key as the CI secret used by the publish workflow.
 ```
 
-That is deliberate — an unsigned or unkeyed release is worse than no release.
+`tools/make-ci-key.py` prints the fingerprint so it can be pasted in
+directly.
 
-## Rotation
+### Rotation
 
-Rotation is not implemented yet. When it is, the previous public key must
-stay published so that already-downloaded packages remain verifiable, and the
-verifier needs a keyring rather than a single key. This is tracked as an
-open question in [`../docs/publishing.md`](../docs/publishing.md#open-questions).
+1. Generate the new key and add it to this file with `status: "active"`.
+2. Switch the CI secret to the new key and publish a release.
+3. Set the old key's `status` to `"revoked"` (keep it listed until no
+   published package still uses it — a revoked key stops counting as the
+   official channel but stays on the record).
+4. Remove the old key once nothing depends on it.
 
-## What this key does and does not prove
+### What a key means
 
-- **Does**: the package bytes were signed by the registry key, and the
-  identity / capability / integrity claims inside the signed attributes were
-  made by the registry key holder.
-- **Does not**: that the publisher is a real person or organisation, that the
-  agent behaves well, or that the agent is endorsed by the platform. There is
-  no official badge in this project.
+A key in this list means: *packages signed by this key were published through
+the official channel and have not been altered since.*
+
+It does **not** mean the agent is endorsed, reviewed, or safe. It says
+nothing about quality. See `docs/trust-model.md`.

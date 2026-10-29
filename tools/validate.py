@@ -233,6 +233,68 @@ def check_hygiene(agent_dir: Path, where: str, report: Report) -> None:
             report.error(where, f"{rel} looks like key material and must not be committed")
 
 
+def check_no_binaries(agent_dir: Path, catalog: dict, report: Report) -> None:
+    """An agent package contains no binaries.
+
+    The capability surface of an agent is exactly prompt + skills + tools +
+    mcp. Any binary capability is reached through an stdio MCP server that
+    lives outside the package. A package that carries an executable would
+    therefore ship an unexpected code-execution surface, and there is no
+    legitimate reason for one.
+    """
+    where = f"agents/{agent_dir.parent.name}/{agent_dir.name}"
+    policy = catalog.get("package_policy", {})
+    forbidden = set(policy.get("forbidden_suffixes", []))
+
+    for path in sorted(agent_dir.rglob("*")):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(agent_dir)
+        suffix = path.suffix.lower()
+        if suffix in forbidden:
+            report.error(
+                where,
+                f"{rel} is a binary ({suffix}). Agent packages contain no binaries - "
+                "expose binary capability through a stdio MCP server instead "
+                "(see docs/publishing.md)",
+            )
+        elif suffix in {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico"}:
+            # Binary assets are allowed - they are inert images, not code.
+            continue
+
+
+def check_mcp_declarations(manifest: dict, catalog: dict, report: Report) -> None:
+    """MCP servers are referenced by name only.
+
+    A package declares the MCP tools it wants. The server binary and its
+    stdio transport configuration are supplied by the runtime; shipping
+    them inside the package would defeat the "no binaries" rule.
+    """
+    where = "manifest"
+    policy = catalog.get("package_policy", {}).get("mcp_declaration", {})
+    prefix = policy.get("tool_prefix", "mcp_")
+
+    for tool in manifest.get("tools", []):
+        name = tool.get("name", "")
+        if name.startswith(prefix):
+            # MCP tools are opted in by name. Nothing else may be declared
+            # for them - in particular no command/args/env, which would let
+            # a package smuggle in an executable.
+            extra = set(tool) - {"name", "type", "config", "rag"}
+            if extra:
+                report.error(
+                    where,
+                    f"MCP tool {name!r} declares extra keys {sorted(extra)} - "
+                    "MCP servers are referenced by name only",
+                )
+            if tool.get("config"):
+                report.error(
+                    where,
+                    f"MCP tool {name!r} must not carry a config block - "
+                    "the runtime supplies the stdio server configuration",
+                )
+
+
 def validate_agent_dir(agent_dir: Path, schema: dict, catalog: dict, report: Report) -> None:
     owner = agent_dir.parent.name
     name = agent_dir.name
@@ -248,7 +310,9 @@ def validate_agent_dir(agent_dir: Path, schema: dict, catalog: dict, report: Rep
                 )
     if manifest is not None:
         check_tier_consistency(agent_dir, manifest, catalog, report)
+        check_mcp_declarations(manifest, catalog, report)
     check_layout(agent_dir, owner, name, manifest, report)
+    check_no_binaries(agent_dir, catalog, report)
     check_hygiene(agent_dir, f"agents/{owner}/{name}", report)
 
 

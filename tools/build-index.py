@@ -11,6 +11,13 @@ without special-casing:
 
 Community additions: tier, tags, publisher, source, signature.
 
+The `signature` block reports two independent facts:
+  - status: "official-channel" | "third-party" | "unsigned"
+  - catalog_digest_covered: whether category/tier/tags are inside the digest list
+    (true for every signed package - they live in manifest.toml)
+
+See docs/trust-model.md for what the signature does and does not mean.
+
 The index is generated output: it is written to --out and never committed.
 
 Usage:
@@ -96,7 +103,7 @@ def build_entry(agent_dir: Path, catalog: dict, packages_dir: Path | None) -> di
 
     required = [
         "agent_id", "version", "name", "display_name", "role", "description",
-        "author", "category", "tier", "publisher",
+        "author", "category", "tier",
     ]
     missing = [k for k in required if not m.get(k)]
     if missing:
@@ -142,7 +149,7 @@ def build_entry(agent_dir: Path, catalog: dict, packages_dir: Path | None) -> di
         for k, v in sorted((m.get("capabilities") or {}).items())
     ]
 
-    publisher = m["publisher"]
+    publisher = m.get("publisher") or {}
 
     entry = {
         "agent_id": m["agent_id"],
@@ -163,8 +170,8 @@ def build_entry(agent_dir: Path, catalog: dict, packages_dir: Path | None) -> di
         "capabilities": capabilities,
         "skills": read_skills(agent_dir),
         "publisher": {
-            "id": publisher["id"],
-            "display_name": publisher["display_name"],
+            "id": publisher.get("id", "unknown"),
+            "display_name": publisher.get("display_name", m["author"]),
             "affiliation": publisher.get("affiliation", "unknown"),
             **({"contact": publisher["contact"]} if publisher.get("contact") else {}),
             **({"homepage": publisher["homepage"]} if publisher.get("homepage") else {}),
@@ -200,35 +207,35 @@ def build_entry(agent_dir: Path, catalog: dict, packages_dir: Path | None) -> di
 def describe_signature(pkg_path: Path) -> dict:
     """Summarize the package signature for the index.
 
-    A v1 package (no `version` in the signed attributes) proves integrity only:
-    its publisher and catalog claims are NOT covered by the signature. Such
-    packages are marked `legacy-v1` so the UI can present them honestly.
+    Two independent questions, and the answer to each is reported separately:
+
+    * was the package altered after signing? -> the signature must verify
+      against the digests recomputed from the package bytes.
+    * did it come through the official channel? -> the signer's fingerprint
+      must appear in registry/trusted-keys.json.
+
+    Capability metadata (category / tier / tags / skills) is covered by the
+    digest list for every signed package, because it lives in manifest.toml
+    inside the package. So `catalog_digest_covered` is true whenever the package is
+    signed. See docs/trust-model.md.
     """
     import signing
 
     data = pkg_path.read_bytes()
     block_content = signing.find_signing_block(data)
     if block_content is None:
-        return {"status": "unsigned", "catalog_covered": False, "identity_covered": False}
+        return {"status": "unsigned", "catalog_digest_covered": False}
+
     block = signing.decode_signing_block(block_content)
-    attrs = block["signers"][0]["signed_attrs"]
-    version = attrs.get("version", 1)
-    if version >= 2:
-        return {
-            "status": "signed-v2",
-            "key_fingerprint": signing.public_key_fingerprint(block["signers"][0]["certificates"][0]["data"]),
-            "signing_time": attrs.get("signing_time"),
-            "publisher_id": attrs.get("publisher", {}).get("id"),
-            "catalog_covered": True,
-            "identity_covered": True,
-        }
+    signer = block["signers"][0]
+    fingerprint = signing.public_key_fingerprint(signer["certificates"][0]["data"])
+
+    trust = signing.resolve_trust(REPO_ROOT, fingerprint)
     return {
-        "status": "legacy-v1",
-        "key_fingerprint": signing.public_key_fingerprint(block["signers"][0]["certificates"][0]["data"]),
-        "signing_time": attrs.get("signing_time"),
-        "publisher_id": None,
-        "catalog_covered": False,
-        "identity_covered": False,
+        "status": "official-channel" if trust["trusted"] else "third-party",
+        "key_fingerprint": fingerprint,
+        "signing_time": signer["signed_attrs"].get("signing_time"),
+        "catalog_digest_covered": True,
     }
 
 

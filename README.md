@@ -36,7 +36,7 @@ ACoworkAgents/
 │   ├── _template/{manifest.toml,README.md,avatar.svg}   # authoring template, not indexed
 │   └── <owner>/<name>/{manifest.toml,README.md,skills/,avatar.svg,LICENSE}
 ├── tools/{validate.py,pack.py,build-index.py,signing.py}
-└── docs/{publishing.md,naming.md,signed-attributes-v2.md,catalog.md}
+└── docs/{publishing.md,naming.md,trust-model.md,catalog.md}
 ```
 
 ## Quick start
@@ -76,9 +76,12 @@ Details: [docs/publishing.md](docs/publishing.md).
 
 **There is no official badge in this project.** No mechanism here marks an
 agent as official, verified or endorsed. `publisher.affiliation` is
-self-declared metadata that is signed (so it cannot be edited after the fact)
-but is **not** a trust decision, and it must never be rendered as a badge.
-See [docs/signed-attributes-v2.md](docs/signed-attributes-v2.md#no-official-badges).
+self-declared metadata and is **not** a trust decision; it must never be
+rendered as a badge. What the signature actually establishes is exactly two
+things: the package was not altered after signing, and it was signed by the
+official channel (its signer fingerprint is in
+[`registry/trusted-keys.json`](registry/trusted-keys.json)).
+See [docs/trust-model.md](docs/trust-model.md).
 
 The `agent_id` prefixes `com.acowork.`, `acowork.` and `official.` are
 reserved for the platform; the validator rejects community submissions that
@@ -92,7 +95,7 @@ signature requirements and review criteria.
 - [docs/publishing.md](docs/publishing.md) — how a submission becomes a published entry
 - [docs/naming.md](docs/naming.md) — directory, id and publisher naming rules
 - [docs/catalog.md](docs/catalog.md) — categories, tiers, tags, search and facet rules
-- [docs/signed-attributes-v2.md](docs/signed-attributes-v2.md) — the signing contract
+- [docs/trust-model.md](docs/trust-model.md) — what the signature means and does not mean
 
 ## License
 

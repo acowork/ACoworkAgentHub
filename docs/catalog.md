@@ -9,16 +9,19 @@ and `schema/manifest.schema.json` mirrors the same enums.
 
 | Field | Kind | Source | Signed? |
 |---|---|---|---|
-| `category` | closed enum | manifest | ✅ inside SignedAttributes v2 |
-| `tier` | closed enum | manifest | ✅ inside SignedAttributes v2 |
-| `tags` | closed vocabulary, ≤ 6 | manifest | ✅ inside SignedAttributes v2 |
-| `skills` | derived | `skills/*/SKILL.md` directory names | ✅ inside SignedAttributes v2 |
-| `capabilities` | derived | `manifest.capabilities` | ✅ inside SignedAttributes v2 |
-| `permissions` | derived | `manifest.permissions` | ✅ inside SignedAttributes v2 |
+| `category` | closed enum | manifest | ✅ via the `manifest.toml` digest |
+| `tier` | closed enum | manifest | ✅ via the `manifest.toml` digest |
+| `tags` | closed vocabulary, ≤ 6 | manifest | ✅ via the `manifest.toml` digest |
+| `skills` | derived | `skills/*/SKILL.md` directory names | ✅ via the per-file digest list |
+| `capabilities` | derived | `manifest.capabilities` | ✅ via the `manifest.toml` digest |
+| `permissions` | derived | `manifest.permissions` | ✅ via the `manifest.toml` digest |
 
-Because all of them are inside the signed attributes, the index does not need
-to trust the manifest to facet on them — and a publisher cannot advertise
-`core` while shipping `Shell` permissions.
+Every one of them lives inside `manifest.toml` (skills are additionally
+covered file by file). `manifest.toml` is in the signed digest list, so all
+of these fields are inside the signature's coverage without any extra
+signing machinery. A publisher cannot advertise `core` while shipping
+`Shell` permissions without breaking the signature. See
+[`trust-model.md`](trust-model.md) for the details.
 
 ## Categories
 

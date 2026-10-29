@@ -58,12 +58,13 @@ def main() -> int:
         print(f"::group::pack {rel}")
         result = pack.pack_agent(agent_dir, out_dir, key_path)
         verification = pack.verify_package(result["package"])
-        if not verification.get("valid"):
+        if not verification.get("signature_valid"):
             print(f"[ci-pack-all] ERROR: {rel} failed verification", file=sys.stderr)
             return 1
         print(
             f"[ci-pack-all] {rel} -> {result['package'].name} "
-            f"(attrs v{verification['attrs_version']}, {verification['sections']} sections) OK"
+            f"({result['file_count']} sections, "
+            f"{'official-channel' if verification['official_channel'] else 'third-party'}) OK"
         )
         print("::endgroup::")
 

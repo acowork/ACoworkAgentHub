@@ -76,6 +76,7 @@
     },
     "tier": {
       "type": "string",
+      "description": "Capability level, NOT a trust level. Derived from the agent's own permissions and skill count. Never rendered as an official/verified badge. Deliberately disjoint from the main repo's official/community vocabulary. The constraints per tier live in schema/catalog.json and are enforced by tools/validate.py. This field lives in manifest.toml, which is inside the package's digest list, so the signature covers it.",
       "enum": ["core", "extended", "advanced"]
     },
     "tags": {
@@ -142,7 +143,7 @@
     },
     "publisher": {
       "type": "object",
-      "description": "Who published this agent. Self-asserted metadata, signed but not verified against any trust root.",
+      "description": "Who published this agent. Self-asserted metadata: it is inside manifest.toml and therefore covered by the package's digest list (it cannot be altered after signing), but it is NOT verified against any trust root and is never a trust input. See docs/trust-model.md.",
       "required": ["id", "display_name"],
       "additionalProperties": false,
       "properties": {
@@ -166,8 +167,8 @@
         },
         "affiliation": {
           "type": "string",
-          "description": "Self-declared relationship to the ACowork project. Never rendered as an official badge.",
-          "enum": ["community", "acowork-maintained", "third-party", "unknown"]
+          "description": "Self-declared relationship to the ACowork project. Purely informational. There is deliberately NO value expressing official status: any such value would be an unofficial 'official badge', forgeable and not backed by the signature. See docs/trust-model.md.",
+          "enum": ["community", "third-party", "unknown"]
         }
       }
     },

@@ -84,16 +84,21 @@ Full rules with rationale: [`docs/naming.md`](docs/naming.md). Short version:
 
 ## Signature requirements
 
-Every published package must be signed. The signature covers three layers:
+Every published package must be signed. The signature does exactly two
+things:
 
-1. **Integrity** — the SHA-256 digest of every file in the package.
-2. **Capability** — the catalog claims (category, tier, tags, skills,
-   permissions, capabilities).
-3. **Identity** — the publisher handle, key fingerprint and self-declared
-   affiliation.
+1. **Integrity** — the SHA-256 digest of every file in the package. Any
+   change after signing breaks verification.
+2. **Official channel** — the signer's public key fingerprint is listed in
+   [`registry/trusted-keys.json`](registry/trusted-keys.json), i.e. the
+   package came out of this repository's publish pipeline.
 
-The full field list, canonicalization rules and the v1 → v2 migration policy
-are in [`docs/signed-attributes-v2.md`](docs/signed-attributes-v2.md).
+The catalog claims (category, tier, tags, skills, permissions, capabilities)
+are covered by the signature too, because they live in `manifest.toml` and
+`manifest.toml` is in the signed digest list. There is no separate
+"capability layer" and no identity binding — see
+[`docs/trust-model.md`](docs/trust-model.md) for the full contract and the
+measurements behind it.
 
 What this means in practice:
 
@@ -102,9 +107,9 @@ What this means in practice:
 - If you *do* sign locally (e.g. you want to verify your own build), use
   `python tools/pack.py <dir> --out build/ --key <seed>` and attach nothing
   to the PR — keys never leave your machine.
-- A package whose signature does not cover the catalog layer is marked
-  `legacy-v1` in the index and its publisher/catalog claims are treated as
-  unverified. New submissions must be `signed-v2`.
+- An unsigned package is rejected by the publish workflow. A package signed
+  by a key outside the trusted set is published as `third-party`: valid, not
+  tampered with, but not the official channel.
 
 ## Review criteria
 
