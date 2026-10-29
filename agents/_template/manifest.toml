@@ -1,0 +1,42 @@
+# Agent manifest — copy this directory to agents/<owner>/<name>/ and edit.
+# Full contract: schema/manifest.schema.json
+
+agent_id = "io.github.your-handle.your-agent"
+version = "0.1.0"
+name = "your-agent"
+display_name = "Your Agent"
+role = "One line describing what this agent does"
+description = "A longer paragraph: what the agent does, who it is for, and when to reach for it. Minimum 20 characters."
+author = "Your Name"
+runtime_version = "0.1.0"
+avatar = "avatar.svg"
+license = "MIT"
+repository = "https://github.com/your-handle/your-agent"
+
+# Catalog fields. category and tier are constrained by schema/catalog.json;
+# tags come from the controlled vocabulary in the same file.
+category = "productivity"
+tier = "core"
+tags = ["automation"]
+
+[publisher]
+# Stable handle. Signed into the package, but it is self-asserted metadata:
+# it is never rendered as an official or verified badge.
+id = "github:your-handle"
+display_name = "Your Name"
+affiliation = "community"
+
+[[permissions]]
+type = "FilesystemRead"
+
+[[permissions]]
+type = "FilesystemWrite"
+
+[[tools]]
+name = "file_read"
+
+[[tools]]
+name = "file_write"
+
+[capabilities.example_workflow]
+description = "What this capability lets the agent do, in one sentence."

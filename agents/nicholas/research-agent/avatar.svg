@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Agent avatar placeholder">
+  <rect width="64" height="64" rx="14" fill="#1f2933"/>
+  <circle cx="32" cy="26" r="10" fill="#9aa5b1"/>
+  <path d="M12 56c2-10 9-15 20-15s18 5 20 15z" fill="#9aa5b1"/>
+</svg>

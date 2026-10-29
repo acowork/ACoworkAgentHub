@@ -1,0 +1,73 @@
+{
+  "$comment": "Single source of truth for the community catalog taxonomy. tools/validate.py asserts that schema/manifest.schema.json carries the same enum values, so the two cannot drift.",
+  "schema_version": 1,
+  "categories": {
+    "engineering": { "label": "Engineering", "description": "Designs, builds or reviews software and infrastructure." },
+    "product": { "label": "Product", "description": "Strategy, discovery, roadmaps, PRDs and launch planning." },
+    "project": { "label": "Project", "description": "Delivery planning, coordination, estimation and progress tracking." },
+    "quality": { "label": "Quality", "description": "Testing, acceptance, review and quality assurance workflows." },
+    "knowledge": { "label": "Knowledge", "description": "Documents, notes, wikis, information architecture and retrieval." },
+    "research": { "label": "Research", "description": "Investigation, literature review, competitive and market analysis." },
+    "data": { "label": "Data", "description": "Data analysis, transformation, pipelines and reporting." },
+    "writing": { "label": "Writing", "description": "Drafting, editing, translation and long-form content." },
+    "devops": { "label": "DevOps", "description": "CI/CD, deployment, monitoring and incident response." },
+    "design": { "label": "Design", "description": "Design systems, visual assets and design review support." },
+    "support": { "label": "Support", "description": "Customer support, triage and service operations." },
+    "education": { "label": "Education", "description": "Teaching, tutoring and curriculum work." },
+    "productivity": { "label": "Productivity", "description": "Personal and team workflow automation." },
+    "other": { "label": "Other", "description": "Anything that does not fit the categories above." }
+  },
+  "tiers": {
+    "core": {
+      "label": "Core",
+      "description": "Single-purpose agent, at most 3 skills, no Shell, Sandbox or out-of-sandbox write permissions.",
+      "constraints": { "max_skills": 3, "forbidden_permissions": ["Shell", "Sandbox"] }
+    },
+    "extended": {
+      "label": "Extended",
+      "description": "Multi-capability agent, at most 10 skills, may write inside its workspace but never shells out.",
+      "constraints": { "max_skills": 10, "forbidden_permissions": ["Shell", "Sandbox"] }
+    },
+    "advanced": {
+      "label": "Advanced",
+      "description": "Agent that may execute commands or run outside a sandbox. Requires maintainer review before publishing.",
+      "constraints": { "max_skills": null, "forbidden_permissions": [] }
+    }
+  },
+  "tags": [
+    "automation",
+    "code-review",
+    "code-generation",
+    "compliance",
+    "data-analysis",
+    "data-pipeline",
+    "debugging",
+    "documentation",
+    "education",
+    "evaluation",
+    "git",
+    "incident-response",
+    "integration",
+    "knowledge-base",
+    "language",
+    "llm",
+    "migration",
+    "monitoring",
+    "notes",
+    "planning",
+    "release",
+    "reporting",
+    "research",
+    "retrieval",
+    "security",
+    "summarization",
+    "testing",
+    "translation",
+    "workflow"
+  ],
+  "reserved_agent_id_prefixes": [
+    "com.acowork.",
+    "acowork.",
+    "official."
+  ]
+}

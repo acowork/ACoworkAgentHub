@@ -1,0 +1,63 @@
+name: review-gate
+
+# Submission gate. A pull request that adds or changes an agent may only be
+# merged after a maintainer has:
+#
+#   1. approved it (a review with no changes requested), and
+#   2. applied the `approved` label.
+#
+# The `approved` label is what the merge queue and the publish workflow key
+# off; the review approval is what makes the label accountable to a person.
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, labeled, unlabeled, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  review-gate:
+    name: Require maintainer approval
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'pull_request' &&
+      (contains(github.event.pull_request.labels.*.name, 'approved') ||
+       github.event.action == 'opened' ||
+       github.event.action == 'reopened' ||
+       github.event.action == 'synchronize' ||
+       github.event.action == 'ready_for_review')
+    steps:
+      - name: Check for the approved label
+        id: label
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const labels = context.payload.pull_request.labels.map(l => l.name);
+            const approved = labels.includes('approved');
+            const changesRequested = labels.includes('changes-requested');
+            core.setOutput('approved', String(approved && !changesRequested));
+            core.info(`labels: ${labels.join(', ') || '(none)'}`);
+
+      - name: Check for an approving review
+        id: review
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const reviews = await github.paginate(
+              github.rest.pulls.listReviews, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.issue.number,
+              });
+            const approvals = reviews.filter(r => r.state === 'APPROVED');
+            const blocked = reviews.some(r => r.state === 'CHANGES_REQUESTED');
+            core.setOutput('approvals', String(approvals.length));
+            core.setOutput('blocked', String(blocked));
+
+      - name: Fail when the submission is not approved
+        if: steps.label.outputs.approved != 'true' || steps.review.outputs.approvals == '0' || steps.review.outputs.blocked == 'true'
+        run: |
+          echo "::error::This submission needs maintainer approval: apply the 'approved' label and submit an approving review (no outstanding changes requested)."
+          exit 1

@@ -1,0 +1,57 @@
+name: Bug report
+description: Report a problem with the registry tooling, the schemas or a published agent
+title: "[bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For a security vulnerability, do **not** use this form - open a private
+        security advisory instead (see SECURITY.md).
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: |
+        Commands, paths and input that trigger the problem.
+        If the problem is in the tooling, include the output of:
+          python tools/validate.py
+    validations:
+      required: true
+
+  - type: input
+    id: agent-id
+    attributes:
+      label: Affected agent_id
+      description: Leave empty if the problem is in the tooling itself.
+      placeholder: io.github.you.your-agent
+
+  - type: input
+    id: version
+    attributes:
+      label: Registry release
+      description: The release tag or commit you tested against
+      placeholder: v2026-04-17-a1b2c3d
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or output
+      description: "Relevant console output. Redact anything sensitive."
+
+  - type: checkboxes
+    id: no-binaries
+    attributes:
+      label: Hygiene
+      options:
+        - label: My report contains no keys, credentials or private data.
+          required: true

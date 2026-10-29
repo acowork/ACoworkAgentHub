@@ -1,0 +1,59 @@
+name: validate
+
+# Runs the exact checks a contributor can run locally:
+#   python tools/validate.py
+#   python tools/pack.py <dir> --out dist/ --key <key>
+#   python tools/pack.py --verify dist/<agent_id>.agent
+#
+# Nothing produced here is committed: packages, checksums, signatures and
+# index.json are CI artifacts only.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate manifests, pack and verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install jsonschema cryptography
+
+      - name: Validate all agent manifests
+        run: python tools/validate.py --check-template
+
+      - name: Generate an ephemeral signing key (CI only, never persisted)
+        run: python tools/make-ci-key.py .keys/ci.key
+
+      - name: Pack and verify every agent
+        run: python tools/ci-pack-all.py --out dist --key .keys/ci.key
+
+      - name: Build the index and validate it against the schema
+        run: |
+          python tools/build-index.py --out dist/index.json --packages dist/
+          python tools/check-index.py dist/index.json schema/agent.schema.json
+
+      - name: Upload packages and index as artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-packages
+          path: dist/
+          retention-days: 7

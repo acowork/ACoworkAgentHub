@@ -1,0 +1,19 @@
+# Generated artifacts - never committed (CI owns these).
+index.json
+agents.json
+build/
+dist/
+*.agent
+*.sha256
+*.sig
+
+# Local signing material - never committed.
+.keys/
+*.key
+*.pem
+publisher.sig.tmp
+
+# Python
+__pycache__/
+*.pyc
+.venv/

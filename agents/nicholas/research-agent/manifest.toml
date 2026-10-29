@@ -1,0 +1,54 @@
+# Research Agent — an example community agent.
+# Demonstrates the manifest contract: schema/manifest.schema.json
+
+agent_id = "io.github.nicholas.research-agent"
+version = "0.1.0"
+name = "research-agent"
+display_name = "Research Agent"
+role = "Turns a question into a sourced, structured research brief"
+description = "An agent that decomposes a research question, gathers evidence across sources, and produces a brief with explicit citations, confidence levels and open questions."
+author = "Nicholas"
+runtime_version = "0.1.0"
+avatar = "avatar.svg"
+license = "MIT"
+repository = "https://github.com/nicholas/research-agent"
+homepage = "https://github.com/nicholas/research-agent"
+
+category = "research"
+tier = "core"
+tags = ["research", "summarization", "reporting"]
+
+identity_deps = ["display_name", "language", "timezone"]
+
+[publisher]
+id = "github:nicholas"
+display_name = "Nicholas"
+affiliation = "community"
+homepage = "https://github.com/nicholas"
+
+[[permissions]]
+type = "FilesystemRead"
+
+[[permissions]]
+type = "Network"
+
+[[tools]]
+name = "web_fetch"
+
+[[tools]]
+name = "http_request"
+
+[[tools]]
+name = "file_write"
+
+[[tools]]
+name = "doc_reader"
+
+[capabilities.question_decomposition]
+description = "Break a broad research question into answerable sub-questions with explicit scope and time bounds"
+
+[capabilities.evidence_gathering]
+description = "Collect and cross-check evidence from multiple sources, recording provenance for every claim"
+
+[capabilities.brief_composition]
+description = "Produce a structured research brief with citations, confidence levels and open questions"

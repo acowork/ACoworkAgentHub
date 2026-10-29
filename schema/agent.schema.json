@@ -1,0 +1,210 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acowork.dev/schemas/agent.schema.json",
+  "title": "ACoworkAgents index entry",
+  "description": "One entry of the generated index.json. The file names and field names are intentionally aligned with the main repo's dev/common/sync-agent-hub.py output so that the website pipeline can consume both without special-casing.",
+  "type": "object",
+  "required": [
+    "agent_id",
+    "version",
+    "name",
+    "display_name",
+    "role",
+    "description",
+    "author",
+    "category",
+    "category_label",
+    "tier",
+    "tags",
+    "skills",
+    "publisher",
+    "source",
+    "package"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "agent_id": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "display_name": {
+      "type": "string"
+    },
+    "role": {
+      "type": "string"
+    },
+    "runtime_version": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "author": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string"
+    },
+    "category_label": {
+      "type": "string"
+    },
+    "tier": {
+      "type": "string"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "skills": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "key",
+          "description"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "permissions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "high_risk_permissions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "publisher": {
+      "type": "object",
+      "required": [
+        "id",
+        "display_name",
+        "affiliation"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "affiliation": {
+          "type": "string"
+        },
+        "contact": {
+          "type": "string"
+        },
+        "homepage": {
+          "type": "string"
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "description": "Where the agent lives in this repository.",
+      "required": [
+        "owner",
+        "path"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "owner": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "repository": {
+          "type": "string"
+        }
+      }
+    },
+    "package": {
+      "type": "object",
+      "required": [
+        "file",
+        "size_bytes",
+        "sha256"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "description": "Provenance of the package signature. 'legacy-v1' means the package predates SignedAttributes v2: its integrity is proven but its identity and catalog claims are NOT covered by the signature.",
+      "required": [
+        "status"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "signed-v2",
+            "legacy-v1",
+            "unsigned"
+          ]
+        },
+        "key_fingerprint": {
+          "type": "string"
+        },
+        "signing_time": {
+          "type": "string"
+        },
+        "publisher_id": {
+          "type": "string"
+        },
+        "catalog_covered": {
+          "type": "boolean"
+        },
+        "identity_covered": {
+          "type": "boolean"
+        }
+      }
+    },
+    "avatar": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}

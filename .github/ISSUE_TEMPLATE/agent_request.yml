@@ -1,0 +1,114 @@
+name: Agent submission
+description: Propose an agent for the community registry
+title: "[agent]: "
+labels: ["agent-request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for proposing an agent. Read
+        [CONTRIBUTING.md](https://github.com/acowork/ACoworkAgents/blob/main/CONTRIBUTING.md)
+        before opening the pull request.
+
+  - type: input
+    id: agent-name
+    attributes:
+      label: Agent name
+      description: Lowercase kebab-case, e.g. "weekly-digest"
+      placeholder: weekly-digest
+    validations:
+      required: true
+
+  - type: input
+    id: display-name
+    attributes:
+      label: Display name
+      description: Human-readable name of the agent
+      placeholder: Weekly Digest
+    validations:
+      required: true
+
+  - type: input
+    id: agent-id
+    attributes:
+      label: Planned agent_id
+      description: "Reverse-DNS style, e.g. io.github.you.weekly-digest. Must not use com.acowork./acowork./official."
+      placeholder: io.github.you.weekly-digest
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      description: The primary navigation axis - see docs/catalog.md
+      options:
+        - engineering
+        - product
+        - project
+        - quality
+        - knowledge
+        - research
+        - data
+        - writing
+        - devops
+        - design
+        - support
+        - education
+        - productivity
+        - other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: tier
+    attributes:
+      label: Tier (capability, not trust)
+      description: "core = <=3 skills and no Shell/Sandbox; extended = <=10 skills; advanced = may use Shell/Sandbox"
+      options:
+        - core
+        - extended
+        - advanced
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What does it do?
+      description: 20-600 characters. What it does, who it is for, when to reach for it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: skills
+    attributes:
+      label: Skills
+      description: One repeatable workflow per line, e.g. "digest-building"
+    validations:
+      required: true
+
+  - type: textarea
+    id: permissions
+    attributes:
+      label: Permissions
+      description: "One per line: FilesystemRead, FilesystemWrite, Network, Shell, Sandbox"
+    validations:
+      required: true
+
+  - type: input
+    id: license
+    attributes:
+      label: License
+      description: "SPDX id, e.g. MIT. Leave empty to inherit the repository MIT license."
+      placeholder: MIT
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmations
+      options:
+        - label: I will not commit binaries, packages, index files or keys to the repository.
+          required: true
+        - label: The manifest, README and skills describe what the agent actually does.
+          required: true

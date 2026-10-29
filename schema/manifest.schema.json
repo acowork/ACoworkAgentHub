@@ -1,0 +1,225 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acowork.dev/schemas/manifest.schema.json",
+  "title": "ACowork community agent manifest",
+  "description": "Schema for agents/<owner>/<name>/manifest.toml, parsed from TOML into JSON before validation. Enum values for category/tier/tags are mirrored from schema/catalog.json; tools/validate.py fails if the two drift apart.",
+  "type": "object",
+  "required": [
+    "agent_id",
+    "version",
+    "name",
+    "display_name",
+    "role",
+    "description",
+    "author",
+    "category",
+    "tier",
+    "publisher"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "agent_id": {
+      "type": "string",
+      "description": "Globally unique reverse-DNS style id. Must not start with a reserved prefix (com.acowork., acowork., official.).",
+      "pattern": "^[a-z0-9][a-z0-9.-]{2,63}$"
+    },
+    "version": {
+      "type": "string",
+      "description": "Semver of the agent itself.",
+      "pattern": "^[0-9]+[.][0-9]+[.][0-9]+(?:-[0-9A-Za-z.-]+)?(?:[+][0-9A-Za-z.-]+)?$"
+    },
+    "name": {
+      "type": "string",
+      "description": "Short machine name, kebab-case.",
+      "pattern": "^[a-z0-9][a-z0-9-]{1,48}$"
+    },
+    "display_name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "role": {
+      "type": "string",
+      "description": "One-line role statement, free text.",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "description": {
+      "type": "string",
+      "description": "What the agent does and who it is for.",
+      "minLength": 20,
+      "maxLength": 600
+    },
+    "author": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "engineering",
+        "product",
+        "project",
+        "quality",
+        "knowledge",
+        "research",
+        "data",
+        "writing",
+        "devops",
+        "design",
+        "support",
+        "education",
+        "productivity",
+        "other"
+      ]
+    },
+    "tier": {
+      "type": "string",
+      "enum": ["core", "extended", "advanced"]
+    },
+    "tags": {
+      "type": "array",
+      "description": "Secondary facets. Values are drawn from the controlled vocabulary in schema/catalog.json.",
+      "uniqueItems": true,
+      "maxItems": 6,
+      "items": {
+        "type": "string",
+        "enum": [
+          "automation",
+          "code-review",
+          "code-generation",
+          "compliance",
+          "data-analysis",
+          "data-pipeline",
+          "debugging",
+          "documentation",
+          "education",
+          "evaluation",
+          "git",
+          "incident-response",
+          "integration",
+          "knowledge-base",
+          "language",
+          "llm",
+          "migration",
+          "monitoring",
+          "notes",
+          "planning",
+          "release",
+          "reporting",
+          "research",
+          "retrieval",
+          "security",
+          "summarization",
+          "testing",
+          "translation",
+          "workflow"
+        ]
+      }
+    },
+    "runtime_version": {
+      "type": "string",
+      "pattern": "^[0-9]+[.][0-9]+[.][0-9]+$"
+    },
+    "avatar": {
+      "type": "string",
+      "description": "Path relative to the agent directory. .png or .svg.",
+      "pattern": "^[A-Za-z0-9_.-]+[.](png|svg)$"
+    },
+    "license": {
+      "type": "string",
+      "description": "SPDX license identifier for this agent's content.",
+      "pattern": "^[A-Za-z0-9.+-]+$"
+    },
+    "repository": {
+      "type": "string",
+      "format": "uri"
+    },
+    "homepage": {
+      "type": "string",
+      "format": "uri"
+    },
+    "publisher": {
+      "type": "object",
+      "description": "Who published this agent. Self-asserted metadata, signed but not verified against any trust root.",
+      "required": ["id", "display_name"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable publisher handle, e.g. github:nicholas.",
+          "pattern": "^[a-z][a-z0-9+.-]*:[a-zA-Z0-9][a-zA-Z0-9._-]{1,63}$"
+        },
+        "display_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "contact": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "homepage": {
+          "type": "string",
+          "format": "uri"
+        },
+        "affiliation": {
+          "type": "string",
+          "description": "Self-declared relationship to the ACowork project. Never rendered as an official badge.",
+          "enum": ["community", "acowork-maintained", "third-party", "unknown"]
+        }
+      }
+    },
+    "identity_deps": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "permissions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type"],
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "FilesystemRead",
+              "FilesystemWrite",
+              "Network",
+              "Shell",
+              "Sandbox"
+            ]
+          },
+          "path": { "type": "string" }
+        }
+      }
+    },
+    "tools": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" }
+        }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "llm": { "type": "object" },
+    "memory": { "type": "object" },
+    "resources": { "type": "object" },
+    "sandbox": { "type": "object" }
+  }
+}
