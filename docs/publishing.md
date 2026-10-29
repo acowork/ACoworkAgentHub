@@ -89,10 +89,12 @@ publishes `index.json` for community agents. The website merges them:
 const all = [...platformAgents.agents, ...communityAgents.agents];
 ```
 
-The only field that needs care is `tier`: the main repo's `tier` means
-"official vs community" (provenance), while this repo's `tier` means
-capability level (`core` / `extended` / `advanced`). **They are different
-axes and must not share a field name.** See the open questions below.
+The only field that needs care is `tier`: this repo's `tier` means capability
+level (`core` / `extended` / `advanced`), while the main repo uses the word
+`tier` for the HTTP permission tiers (`Agent` / `Attribution` / `Admin` /
+`Claim`) and for signer identities (`Developer` / `Platform` / `CaIssued`).
+**Different axes.** The website must not present them under one label. See
+the open questions below.
 
 ## Consumption contract for `index.json`
 
@@ -100,7 +102,8 @@ axes and must not share a field name.** See the open questions below.
 - `agents[]` entries validate against `schema/agent.schema.json`.
 - `agents[].package.sha256` is the sha256 of the `.agent` file named by
   `agents[].package.file`, relative to the release's `downloads/` directory.
-- `agents[].signature.status` is one of `signed-v2`, `legacy-v1`, `unsigned`.
+- `agents[].signature.status` is one of `official-channel`, `third-party`,
+  `unsigned`.
 - `facets` carries precomputed counts; see [`catalog.md`](catalog.md#facet-rules).
 
 ## Licensing
@@ -133,13 +136,15 @@ this round so the pipeline could be built; they are expected to be revisited.
    the registry accept copyleft or source-available agent licenses, or
    restrict agents to permissive licenses only? Current policy accepts them
    with a declaration.
-2. **The `tier` field collision** **[assumed: rename on the website side]** —
-   the platform catalogue and the community catalogue use `tier` for
-   different things (main repo: `official` / `community`; here: capability
-   level `core` / `extended` / `advanced`). Proposal: rename the platform's
-   to `provenance` and keep `tier` as capability level everywhere. Not yet
-   agreed. Until then, the website must not offer a `tier` filter that mixes
-   the two vocabularies.
+2. **The `tier` field collision** **[assumed: keep `tier` as capability
+   level; disambiguate in prose]** — the word `tier` already means two
+   unrelated things in the main repo: the HTTP permission tiers in
+   `core/acowork-gateway/src/http/permission.rs` (`Agent` / `Attribution` /
+   `Admin` / `Claim`) and the signer identities in `acowork-sign`
+   (`Developer` / `Platform` / `CaIssued`). Here `tier` means capability
+   level (`core` / `extended` / `advanced`). The value sets are disjoint and
+   the schema says so, but if the website ever surfaces the main repo's
+   permission tiers it must not label them `tier` next to these.
 3. **Deprecated flag** **[assumed: `deprecated = true` in the manifest]** —
    needs a schema addition and index handling.
 4. **Registry key rotation** **[assumed: supported via `status: revoked`]** —

@@ -76,7 +76,7 @@
     },
     "tier": {
       "type": "string",
-      "description": "Capability level, NOT a trust level. Derived from the agent's own permissions and skill count. Never rendered as an official/verified badge. Deliberately disjoint from the main repo's official/community vocabulary. The constraints per tier live in schema/catalog.json and are enforced by tools/validate.py. This field lives in manifest.toml, which is inside the package's digest list, so the signature covers it.",
+      "description": "Capability level, NOT a trust level. Declared by the author, and the validator checks it against the agent's own declared permissions and skill count (the per-tier constraints live in schema/catalog.json). Never rendered as an official/verified badge. Deliberately disjoint from the main repo's permission tiers (Agent/Attribution/Admin/Claim) and from its signer identities (Developer/Platform/CaIssued). The constraints per tier live in schema/catalog.json and are enforced by tools/validate.py. This field lives in manifest.toml, which is inside the package's digest list, so the signature covers it.",
       "enum": ["core", "extended", "advanced"]
     },
     "tags": {
