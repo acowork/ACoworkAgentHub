@@ -27,7 +27,7 @@
     "name": {
       "type": "string",
       "minLength": 1,
-      "description": "Human-readable name."
+      "description": "Human-readable name. The main repo uses this as the agent's short display label (e.g. \"Docs\", \"PM\", \"QA\"), so it is NOT required to match the hub's directory slug. The hub never rewrites it."
     },
     "display_name": {
       "type": "string",

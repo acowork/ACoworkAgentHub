@@ -1,0 +1,17 @@
+# Cloudflare Pages response headers.
+# https://developers.cloudflare.com/pages/configuration/headers/
+
+/*
+  X-Content-Type-Options: nosniff
+
+# Agent packages are opaque ZIP containers with an unknown extension; without
+# an explicit disposition a browser may try to render them as text when the
+# URL is opened directly rather than clicked through the [download] anchor.
+/downloads/*
+  Content-Disposition: attachment
+  Content-Type: application/octet-stream
+
+# The index is the registry's public data. It changes on every publish, so
+# it must never be cached by a CDN edge that outlives a release.
+/data/*
+  Cache-Control: no-cache

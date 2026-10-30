@@ -1,0 +1,9 @@
+{
+  "publisher": {
+    "id": "github:dietrichgebert",
+    "display_name": "DietrichGebert",
+    "homepage": "https://github.com/DietrichGebert"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/DietrichGebert/ponytail"
+}

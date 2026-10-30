@@ -1,0 +1,9 @@
+{
+  "publisher": {
+    "id": "acowork:official",
+    "display_name": "ACowork",
+    "homepage": "https://acowork.ai"
+  },
+  "license": "Apache-2.0",
+  "repository": "https://github.com/acowork/ACowork"
+}

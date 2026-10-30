@@ -1,0 +1,14 @@
+{
+  "$comment": "The official channel: the platform's own agents, mirrored from the main repo's examples/ into agents/official/. Two things are pinned here. (1) The publisher id that owns the reserved `official` owner directory. (2) The exact agent ids that publisher may publish. A pull request that claims `acowork:official` with an id that is not in this list is rejected by tools/validate.py — so claiming the platform identity requires a reviewed change to this file, not just a directory name. Changing this file is a deliberate act of the platform and is visible in the diff.",
+  "schema_version": 1,
+  "publisher_id": "acowork:official",
+  "owner_dir": "official",
+  "agents": [
+    "com.acowork.document-manager",
+    "com.acowork.product-manager",
+    "com.acowork.project-manager",
+    "com.acowork.quality-assurance",
+    "com.acowork.senior-engineer",
+    "com.acowork.software-architect"
+  ]
+}

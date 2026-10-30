@@ -36,8 +36,18 @@ jobs:
       - name: Install dependencies
         run: pip install jsonschema cryptography
 
+      # The main repo's `examples/*` is the source of truth for the platform
+      # agents mirrored here. If the main repo changed, this mirror is stale
+      # and the hub would publish the old packages.
+      - name: Check the official-agent mirror against the main repo
+        env:
+          MAIN_REPO: acowork/ACowork
+        run: |
+          git clone --depth 1 "https://github.com/$MAIN_REPO.git" ../main-repo
+          python tools/sync-official.py --main-repo ../main-repo --check
+
       - name: Validate all agent manifests
-        run: python tools/validate.py --check-template
+        run: python tools/validate.py --check-template --strict
 
       - name: Generate an ephemeral signing key (CI only, never persisted)
         run: python tools/make-ci-key.py --output-dir .keys/ci --ephemeral
@@ -52,6 +62,17 @@ jobs:
         run: |
           python tools/build-index.py --out dist/index.json --packages dist/
           python tools/check-index.py dist/index.json schema/agent.schema.json
+
+      # The site is rendered entirely by JavaScript from the index. A 200 on
+      # index.html proves nothing, so the page is opened in a real browser:
+      # the cards must render, the facets must populate, the filters must
+      # narrow the list and every download link must resolve.
+      - name: Build the site and render it in a headless browser
+        run: |
+          python tools/build-site.py --index dist/index.json --packages dist/ --out dist/site
+          pip install playwright
+          python -m playwright install --with-deps chromium
+          python tools/check-site.py --site dist/site
 
       # The manifest schema is a MIRROR of the main repo's AgentManifest, and
       # a mirror can drift. Only the main repo's real parser can settle

@@ -1,5 +1,49 @@
-* text=auto eol=lf
-*.png binary
+# Agent package content is byte-sensitive: it is hashed into the package
+# digest list and signed. A checkout that rewrites line endings would make
+# the same agent produce a different digest on different machines, and would
+# break the "the hub's copy is byte-identical to the main repo's" guarantee
+# that tools/sync-official.py checks.
+#
+# Rule order matters: in .gitattributes the LAST matching pattern wins, so
+# the catch-all comes first and the specific rules override it.
+
+# --- catch-all: no conversion ---
+* -text
+
+# --- package content: never touched ---
+agents/**/manifest.toml  -text
+agents/**/prompts/**    -text
+agents/**/skills/**     -text
+agents/**/assets/**     -text
+agents/**/hub.json      -text
+
+# --- repository text: LF ---
+*.md   text eol=lf
+*.json text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.py   text eol=lf
+*.js   text eol=lf
+*.css  text eol=lf
+*.html text eol=lf
+*.svg  text eol=lf
+*.txt  text eol=lf
+
+# --- binary assets: stored as they are ---
+*.jpg  binary
+*.jpeg binary
+*.png  binary
+*.gif  binary
+*.ico  binary
+*.woff2 binary
+*.woff binary
+*.zip  binary
 *.agent binary
-*.svg text
-*.key binary
+
+# --- package content, again, so it wins over the patterns above ---
+#
+# Everything under an agent directory is part of the package: it is hashed
+# into the digest list and signed. The README and LICENSE in there are
+# hub-owned text, but they ship in the package too, so they get the same
+# treatment as the manifest.
+agents/** -text

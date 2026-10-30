@@ -74,6 +74,19 @@ agents/
   does not reproduce that inference, and blocks the namespace from being
   claimed by accident or on purpose.
 
+  The platform's own agents are published here too, under
+  `agents/official/`, keeping their original `com.acowork.*` ids — so an
+  installed package stays upgradeable instead of forking into a second,
+  differently-named agent. That exemption is narrow and explicit:
+
+  - only the publisher id `acowork:official` may use a reserved prefix,
+  - only under the `agents/official/` directory,
+  - and only for an `agent_id` already listed in
+    [`registry/official-publishers.json`](../registry/official-publishers.json).
+
+  So claiming the platform identity takes a reviewed change to that registry
+  file — it shows up in the diff — rather than a directory name.
+
 ## Publisher handle rules
 
 `publisher.id` is `scheme:value`:

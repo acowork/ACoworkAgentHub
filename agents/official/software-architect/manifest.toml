@@ -1,0 +1,148 @@
+# Software Architect Agent
+# A principal-level architect for system design, architecture review, technical planning, and risk assessment.
+
+agent_id = "com.acowork.software-architect"
+version = "1.0.0"
+name = "Architect"
+display_name = "Architect"
+role = "Software Architect"
+description = "A principal-level software architect skilled in requirements analysis, system design, architecture review, module boundaries, interface contracts, scalability, security, and technical planning."
+author = "ACowork Team"
+runtime_version = "0.1.0"
+dev = false
+labels = ["architecture", "design"]
+avatar = "assets/avatar.jpg"
+
+identity_deps = ["language", "timezone"]
+
+[[permissions]]
+type = "FilesystemRead"
+
+[[permissions]]
+type = "FilesystemWrite"
+
+[[permissions]]
+type = "Network"
+
+[[permissions]]
+type = "Shell"
+
+# Tool opt-in declarations (ADR-029).
+# Software Architect investigates systems, reviews designs, and plans technical
+# work — the broadest tool set among user agents, mirroring the senior engineer's
+# shell + LSP needs for architecture review and infrastructure investigation:
+#   - file_*/doc_reader/glob_search/content_search → navigate and author designs
+#   - bash/powershell/shell                       → investigate infra, run analysis tools
+#   - http_request/web_fetch                     → research patterns & best practices
+#   - codebase                                    → LSP-based code intelligence for review
+#   - mcp_memory__* (hosted memory MCP, ADR-101)   → architecture decisions and trade-offs
+#   - intent_send                                 → coordinate with dev and review agents
+#   - ask_user_question, todo_write               → clarify requirements & track planning
+# Shell tools are declared for all three names (platform-detected) so an
+# architect always has shell access on every platform.
+
+# --- Memory (ADR-101) ---
+# `memory_recall` / `memory_store` are no longer built-ins, so nothing is declared
+# here: they are tools of the Gateway-hosted memory MCP, opted in per agent in
+# `agent_mcp_tools.json` as `mcp_memory__memory_recall` / `mcp_memory__memory_store`
+# (ADR-069).
+
+# --- Filesystem ---
+[[tools]]
+name = "file_edit"
+
+[[tools]]
+name = "doc_reader"
+
+# --- Network ---
+[[tools]]
+name = "http_request"
+
+[[tools]]
+name = "web_fetch"
+
+# --- Shell (platform-detected; declare all three for cross-platform opt-in) ---
+[[tools]]
+name = "bash"        # Windows (Git Bash installed)
+
+[[tools]]
+name = "powershell"  # Windows (always; pwsh preferred, falls back to Windows PowerShell 5.1)
+
+[[tools]]
+name = "shell"       # Linux / macOS
+
+# --- Inter-agent ---
+[[tools]]
+name = "intent_send"
+
+# --- Workflow ---
+[[tools]]
+name = "ask_user_question"
+
+[[tools]]
+name = "todo_write"
+
+# --- Advanced ---
+[[tools]]
+name = "load_skill"
+
+[llm]
+temperature = 0.25
+max_tokens = 32768
+context_window = 200000
+
+[llm.routing]
+strategy = "quality_priority"
+fallback_order = ["claude", "openai"]
+
+[llm.budget]
+max_output_tokens = 8192
+exceeded_action = "warn"
+
+
+# ADR-104: behaviour defaults for agent_config.json. Seeded only into
+# fields the user has not set; never overwrites a user value.
+[config]
+temperature = 0.4
+context_window = 200000
+max_output_tokens = 8192
+max_iterations = 40
+
+[memory]
+enabled = true
+retention_days = 365
+
+[resources]
+max_memory_mb = 512
+idle_timeout_secs = 3600
+
+[sandbox]
+enabled = false
+
+# ADR-104: recommended MCP servers. Recommendation, not installation —
+# the user confirms install/activation in the Tools panel (ADR-090).
+
+[[mcp_servers]]
+hosted = "memory"
+why = "Retain ADRs, trade-off analyses and review outcomes over time"
+
+[[mcp_servers]]
+preset = "context7"
+why = "Verify framework capabilities and version constraints before designing"
+
+[capabilities.architecture_strategy]
+description = "Create architecture strategies with explicit trade-offs, decision records, and migration paths"
+skills = ["architecture-strategy"]
+
+[capabilities.system_design_review]
+description = "Review system designs for boundaries, coupling, scalability, reliability, security, and operability"
+skills = ["system-design-review"]
+
+[capabilities.technical_planning]
+description = "Convert approved designs into implementation plans with clear module ownership, interfaces, tests, and rollout steps"
+skills = ["technical-planning"]
+
+[capabilities.architecture_risk_assessment]
+description = "Assess architectural risks, blast radius, reversibility, rollback paths, and operational failure modes"
+skills = ["architecture-risk-assessment"]
+

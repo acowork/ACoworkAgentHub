@@ -1,0 +1,143 @@
+# Quality Assurance Agent
+# A quality management agent for test strategy, test planning, defect management, release acceptance, and regression control.
+
+agent_id = "com.acowork.quality-assurance"
+version = "1.0.0"
+name = "QA"
+display_name = "QA"
+role = "Quality Assurance Manager"
+description = "A quality assurance and quality management agent skilled in quality strategy, test planning, test case design, defect triage, regression management, release acceptance, and continuous quality improvement."
+author = "ACowork Team"
+runtime_version = "0.1.0"
+dev = false
+labels = ["quality", "testing"]
+avatar = "assets/avatar.jpg"
+
+identity_deps = ["display_name", "language", "timezone"]
+
+[[permissions]]
+type = "FilesystemRead"
+
+[[permissions]]
+type = "FilesystemWrite"
+
+[[permissions]]
+type = "Network"
+
+# Tool opt-in declarations (ADR-029).
+# QA Manager focuses on quality strategy, test planning, test case design,
+# defect management, release acceptance, and regression management. This is a
+# planning/management role, not a test-execution role — tools cover authoring
+# and review, not running test commands:
+#   - file_*/doc_reader/glob_search/content_search → test plans, cases, defect reports
+#   - http_request/web_fetch                      → research test tools & practices
+#   - mcp_memory__* (hosted memory MCP, ADR-101)   → quality history & known issues
+#   - intent_send                                  → coordinate with dev/PM agents
+#   - ask_user_question, todo_write                → clarify acceptance & track plans
+# No shell tools — this QA role is management-focused, not test execution.
+
+# --- Memory (ADR-101) ---
+# `memory_recall` / `memory_store` are no longer built-ins, so nothing is declared
+# here: they are tools of the Gateway-hosted memory MCP, opted in per agent in
+# `agent_mcp_tools.json` as `mcp_memory__memory_recall` / `mcp_memory__memory_store`
+# (ADR-069).
+
+# --- Filesystem ---
+[[tools]]
+name = "file_edit"
+
+[[tools]]
+name = "doc_reader"
+
+# --- Shell (platform-detected; declare all three for cross-platform opt-in) ---
+[[tools]]
+name = "bash"        # Windows (Git Bash installed)
+
+[[tools]]
+name = "powershell"  # Windows (always; pwsh preferred, falls back to Windows PowerShell 5.1)
+
+[[tools]]
+name = "shell"       # Linux / macOS
+
+# --- Inter-agent ---
+[[tools]]
+name = "intent_send"
+
+# --- Workflow ---
+[[tools]]
+name = "ask_user_question"
+
+[[tools]]
+name = "todo_write"
+
+# --- Advanced ---
+[[tools]]
+name = "load_skill"
+
+[llm]
+temperature = 0.1
+max_tokens = 32768
+context_window = 200000
+
+[llm.routing]
+strategy = "quality_priority"
+fallback_order = ["claude", "openai"]
+
+[llm.budget]
+max_output_tokens = 8192
+exceeded_action = "warn"
+
+
+# ADR-104: behaviour defaults for agent_config.json. Seeded only into
+# fields the user has not set; never overwrites a user value.
+[config]
+temperature = 0.3
+context_window = 200000
+max_output_tokens = 8192
+max_iterations = 40
+
+[memory]
+enabled = true
+retention_days = 365
+
+[resources]
+max_memory_mb = 512
+idle_timeout_secs = 3600
+
+[sandbox]
+enabled = false
+
+# ADR-104: recommended MCP servers. Recommendation, not installation —
+# the user confirms install/activation in the Tools panel (ADR-090).
+
+[[mcp_servers]]
+hosted = "pm"
+why = "File defects as tasks with reproduction steps attached"
+
+[[mcp_servers]]
+preset = "playwright"
+why = "Drive the web UI to reproduce defects and verify acceptance criteria"
+
+[capabilities.quality_strategy]
+description = "Define quality objectives, risk-based quality gates, metrics, and continuous improvement plans"
+skills = ["quality-strategy"]
+
+[capabilities.test_planning]
+description = "Create test plans with scope, levels, environments, responsibilities, risks, and schedules"
+
+[capabilities.test_case_design]
+description = "Design behavior-focused test cases covering functional, non-functional, boundary, negative, and regression scenarios"
+skills = ["test-case-design"]
+
+[capabilities.defect_management]
+description = "Triage, classify, prioritize, track, and report defects through resolution and verification"
+skills = ["defect-management"]
+
+[capabilities.release_acceptance]
+description = "Assess release readiness using quality gates, known issues, risk acceptance, and go/no-go criteria"
+skills = ["release-acceptance"]
+
+[capabilities.regression_management]
+description = "Plan and maintain regression suites based on risk, change impact, defect history, and automation value"
+skills = ["regression-management"]
+

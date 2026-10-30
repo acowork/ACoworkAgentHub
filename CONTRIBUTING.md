@@ -107,11 +107,14 @@ Optional: `publisher.display_name`, `publisher.homepage`, `homepage`,
 Full rules with rationale: [`docs/naming.md`](docs/naming.md). Short version:
 
 - One agent per directory: `agents/<owner>/<name>/`.
-- `owner` and `name` are lowercase kebab-case; `name` must match
-  `manifest.name`.
+- `owner` and `name` are lowercase kebab-case.
 - `agent_id` must not use a reserved prefix (`com.acowork.`, `acowork.`,
   `official.`). The validator rejects these.
 - `skills/<skill>/SKILL.md` — skill directory names are kebab-case.
+
+`manifest.name` is the agent's short display label (the main repo uses values
+like `"Docs"` or `"PM"`), so it does **not** have to match the directory
+name. The hub never rewrites it.
 
 ## Signature requirements
 
@@ -175,9 +178,9 @@ The repository is MIT. Each agent may ship its own `LICENSE` file; when it
 does, that license applies to the agent's own content, not to the registry
 machinery. Permissive licenses (MIT, Apache-2.0, BSD) are accepted without
 further discussion. Copyleft and source-available licenses are accepted but
-must be declared in `manifest.license` (SPDX id) and in the agent's `LICENSE`
-file so users know what they are getting. See the open questions in
-[`docs/publishing.md`](docs/publishing.md#open-questions).
+must be declared as an SPDX expression in `hub.json` (`license`) and in the
+agent's `LICENSE` file so users know what they are getting. See the open
+questions in [`docs/publishing.md`](docs/publishing.md#open-questions).
 
 ## Code of conduct
 

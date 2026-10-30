@@ -1,0 +1,154 @@
+# Document Manager Agent
+# A documentation management agent for collection, organization, archiving, writing, format conversion, and knowledge base maintenance.
+
+agent_id = "com.acowork.document-manager"
+version = "1.0.0"
+name = "Docs"
+display_name = "Docs"
+role = "Document Manager"
+description = "A document management agent skilled in collecting, organizing, archiving, writing, reviewing, converting, and maintaining documentation and knowledge bases."
+author = "ACowork Team"
+runtime_version = "0.1.0"
+dev = false
+labels = ["documents", "knowledge-base"]
+avatar = "assets/avatar.jpg"
+
+identity_deps = ["display_name", "language", "timezone"]
+
+[[permissions]]
+type = "FilesystemRead"
+
+[[permissions]]
+type = "FilesystemWrite"
+
+[[permissions]]
+type = "Network"
+
+# Tool opt-in declarations (ADR-029).
+# Document Manager focuses on collecting, organizing, archiving, writing,
+# reviewing, and converting documentation. Tools cover the full doc lifecycle:
+#   - doc_reader              → PRIMARY tool: read PDF/Word/Excel/PowerPoint
+#   - file_*/glob_search/content_search → organize, write, search knowledge base
+#   - http_request/web_fetch             → gather external references
+#   - mcp_memory__* (hosted memory MCP, ADR-101)   → knowledge-base persistence across sessions
+#   - intent_send             → coordinate with content-owner agents
+#   - ask_user_question, todo_write → clarify scope & track doc tasks
+# No shell tools — Doc Manager does not hold a Shell permission.
+
+# --- Memory (ADR-101) ---
+# `memory_recall` / `memory_store` are no longer built-ins, so nothing is declared
+# here: they are tools of the Gateway-hosted memory MCP, opted in per agent in
+# `agent_mcp_tools.json` as `mcp_memory__memory_recall` / `mcp_memory__memory_store`
+# (ADR-069).
+
+# --- Filesystem ---
+[[tools]]
+name = "file_edit"
+
+[[tools]]
+name = "doc_reader"
+
+# --- Shell (platform-detected; declare all three for cross-platform opt-in) ---
+[[tools]]
+name = "bash"        # Windows (Git Bash installed)
+
+[[tools]]
+name = "powershell"  # Windows (always; pwsh preferred, falls back to Windows PowerShell 5.1)
+
+[[tools]]
+name = "shell"       # Linux / macOS
+
+# --- Network ---
+[[tools]]
+name = "http_request"
+
+[[tools]]
+name = "web_fetch"
+
+# --- Inter-agent ---
+[[tools]]
+name = "intent_send"
+
+# --- Workflow ---
+[[tools]]
+name = "ask_user_question"
+
+[[tools]]
+name = "todo_write"
+
+# --- Advanced ---
+[[tools]]
+name = "load_skill"
+
+[llm]
+temperature = 0.3
+max_tokens = 65536
+context_window = 250000
+
+[llm.routing]
+strategy = "quality_priority"
+fallback_order = ["claude", "openai"]
+
+[llm.budget]
+max_output_tokens = 8192
+exceeded_action = "warn"
+
+
+# ADR-104: behaviour defaults for agent_config.json. Seeded only into
+# fields the user has not set; never overwrites a user value.
+[config]
+temperature = 0.4
+context_window = 200000
+max_output_tokens = 8192
+max_iterations = 40
+
+[memory]
+enabled = true
+retention_days = 365
+
+[resources]
+max_memory_mb = 512
+idle_timeout_secs = 3600
+
+[sandbox]
+enabled = false
+
+# ADR-104: recommended MCP servers. Recommendation, not installation —
+# the user confirms install/activation in the Tools panel (ADR-090).
+
+[[mcp_servers]]
+hosted = "doc"
+why = "Read and write the shared document library instead of local files"
+
+[[mcp_servers]]
+preset = "docling"
+why = "Convert PDF / Office files the built-in doc_reader cannot parse"
+
+[capabilities.document_collection]
+description = "Collect source documents, references, meeting notes, specs, and links with provenance and scope tracking"
+skills = ["document-collection"]
+
+[capabilities.document_organization]
+description = "Organize documents into clear information architecture, indexes, categories, tags, and navigation"
+skills = ["document-organization"]
+
+[capabilities.document_writing]
+description = "Write clear technical, product, process, and knowledge-base documentation for target audiences"
+skills = ["document-writing"]
+
+[capabilities.format_conversion]
+description = "Convert documentation between Markdown, HTML, plain text, structured templates, and other supported formats"
+skills = ["format-conversion"]
+
+[capabilities.archive_management]
+description = "Archive documents with versioning, retention rules, metadata, provenance, and retrieval paths"
+skills = ["archive-management"]
+
+[capabilities.knowledge_base_maintenance]
+description = "Maintain knowledge bases by deduplicating, linking, updating, deprecating, and curating content"
+skills = ["knowledge-base-maintenance"]
+
+[capabilities.document_quality_review]
+description = "Review documents for accuracy, completeness, clarity, structure, consistency, links, and freshness"
+skills = ["document-quality-review"]
+

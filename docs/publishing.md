@@ -1,171 +1,185 @@
-# Publishing
+# The release loop
 
-How a submission becomes a published, downloadable, signed entry.
+How a submission becomes a published, signed, downloadable agent — and how
+that reaches a user.
 
-## The pipeline
+## The whole loop
 
 ```
-PR opened
-   │
-   ├─ validate.yml ── schema + taxonomy + layout + pack + sign/verify smoke test
-   │
-   ├─ review-gate.yml ── needs a maintainer `approved` label
-   │
-   ▼
-merged into main
-   │
-   └─ publish.yml ── pack every agent → sign → build index.json → GitHub Release
+  contributor                this repo                    hub.acowork.ai
+       │                        │                              │
+       │  pull request          │                              │
+       ├───────────────────────▶│                              │
+       │                        │                              │
+       │   validate.yml         │  schema, taxonomy, layout,  │
+       │   review-gate.yml      │  pack+sign+verify smoke test │
+       │                        │  maintainer approval          │
+       │  merged into main      │                              │
+       │                        │  publish.yml                 │
+       │                        │    pack every agent           │
+       │                        │    sign with the channel key  │
+       │                        │    build index.json           │
+       │                        │    build the site             │
+       │                        │    render it in a browser     │
+       │                        │      │                       │
+       │                        │      ├─▶ GitHub Release       │
+       │                        │      │   (index.json,          │
+       │                        │      │    *.agent, SHA256SUMS)  │
+       │                        │      │                       │
+       │                        │      └─▶ Cloudflare Pages ──────┼──▶ hub.acowork.ai
+       │                        │                              │
+       │                        │                              │  user downloads
+       │                        │                              │  .agent package
+       │                        │                              │
+       │                        │  Desktop App verifies the signature
+       │                        │  on install (acowork-node)    │
+       ▼                        ▼                              ▼
 ```
 
 Everything binary is produced by `publish.yml`. The repository never contains
-a package, a checksum, a signature or an index.
+a package, a checksum, a signature or an index — not on a branch either.
 
-## What `publish.yml` does
+## The two outputs of one build
 
-1. Checks out `main`.
-2. Installs Python 3.11 + `jsonschema` + `cryptography`.
-3. Runs `python tools/validate.py` — the same check contributors run locally.
-4. For each `agents/<owner>/<name>/`:
-   - `python tools/pack.py <dir> --out dist/ --key "$REGISTRY_KEY"` — packs and
-     signs with the registry key,
-   - `python tools/pack.py --verify dist/<agent_id>.agent` — verifies the
-     package it just produced (a signing bug must fail the release, not ship).
-5. Runs `python tools/build-index.py --out dist/index.json --packages dist/`.
-6. Publishes a GitHub Release (`v<date>-<short sha>`) with:
-   - `index.json`,
-   - every `<agent_id>.agent` package,
-   - every `<agent_id>.agent.sha256` checksum file,
-   - `SHA256SUMS` over all packages.
+`publish.yml` produces two things from **one** run:
 
-The release is the single distribution point for the community registry.
+| Output | Where it goes | What it is |
+|---|---|---|
+| GitHub Release | `github.com/acowork/ACoworkAgentHub/releases` | the machine-readable distribution point: `index.json`, every `.agent` package, `SHA256SUMS` |
+| the site | `hub.acowork.ai` (Cloudflare Pages) | the same snapshot, rendered as a page |
+
+They come from the same `dist/`, so the page, the index and the downloadable
+packages are always the same snapshot. A user who reads a description on the
+page downloads exactly that package.
+
+## Why the site lives in this repo
+
+The site source is in `site/` here, not in the marketing-site repo. Three
+reasons:
+
+1. **One build, one artifact.** The page and the packages are produced by the
+   same job. If the page lived elsewhere, the site would have to fetch a
+   Release and could show a description for a package that has since been
+   replaced.
+2. **The data source is here.** `data/index.json` is a generated artifact of
+   this repo's pipeline. Copying it to another repo to render it adds a copy
+   step and a way for the two to disagree.
+3. **The publish loop is here.** Adding an agent is a pull request to this
+   repo; the page updates when the release does. The marketing site stays
+   about the product.
+
+The site is deliberately plain: one HTML file, one CSS file, one JS file, no
+build step, no npm dependency. It is a directory of files that any static
+host can serve.
+
+## What `publish.yml` does, step by step
+
+1. Validates every agent (`tools/validate.py --strict`) — the same check a
+   contributor runs locally.
+2. Restores the registry signing key from the `ACOWORK_AGENTS_SIGNING_KEY`
+   secret.
+3. Packs and signs every agent (`tools/ci-pack-all.py`), then verifies each
+   package it just produced. A signing bug must fail the release, not ship.
+4. Runs the tamper-detection self test (`tools/selftest.py`) — proves the
+   signature actually detects an altered package.
+5. Builds `index.json` (`tools/build-index.py`) and validates it against
+   `schema/agent.schema.json`.
+6. **Runs the main repo's own manifest parser over every package.** The hub's
+   schema is a *mirror* of the main repo's `AgentManifest`, and a mirror can
+   drift. This step is what stops the hub from publishing a package the app
+   would refuse to install.
+7. Builds the site (`tools/build-site.py`) and **renders it in a headless
+   browser** (`tools/check-site.py`). A 200 on `index.html` proves nothing —
+   the page is rendered by JavaScript from `index.json`.
+8. Publishes the GitHub Release.
+9. Deploys `dist/site` to Cloudflare Pages.
+
+Steps 6 and 7 are the interesting ones. Both exist because the obvious
+check ("the file is there, the server returns 200") does not actually test
+the thing that matters: that the package installs, and that the page shows
+the packages.
 
 ## The registry key
 
 - The Ed25519 seed is a repository secret (`ACOWORK_AGENTS_SIGNING_KEY`), a
   raw 32-byte file.
-- The corresponding public key and its fingerprint are **published** in
-  [`registry/trusted-keys.json`](../registry/trusted-keys.json) so anyone
-  can check that a package was signed by the official channel key.
+- The public key and its fingerprint are **published** in
+  [`registry/trusted-keys.json`](../registry/trusted-keys.json), so anyone
+  can check whether a package came through the official channel.
 - A published package's signature proves two things: *these exact bytes were
-  signed by the official channel key, and they have not been altered since*.
-  It does not prove the publisher is a real person, and it says nothing
-  about the agent's quality. See [`trust-model.md`](trust-model.md).
+  signed by the official channel key* and *they have not been altered since*.
+  It does not prove the publisher is a real person, and it says nothing about
+  the agent's quality. See [`trust-model.md`](trust-model.md).
 
-## How the website consumes this repo
+## Secrets the pipeline needs
 
-**Recommendation: the website's CI pulls the Release artifacts.** Concretely,
-the website workflow downloads the latest `index.json` and the `.agent`
-packages from the registry's GitHub Release, verifies each package's sha256
-against the published `.sha256` file, and writes them into
-`agents/data/agents.json`, `agents/downloads/` and `agents/avatars/`.
+| Secret | Used for | Required |
+|---|---|---|
+| `ACOWORK_AGENTS_SIGNING_KEY` | signing the packages (base64 of the raw 32-byte seed) | yes |
+| `CLOUDFLARE_API_TOKEN` | deploying the site | yes |
+| `CLOUDFLARE_ACCOUNT_ID` | deploying the site | yes |
 
-Why this and not the alternatives:
+The Cloudflare Pages project is `acowork-agent-hub`; its custom domain is
+`hub.acowork.ai` (set in `site/CNAME`).
 
-- **Release artifacts vs. submodule** — a submodule pins the *source*, but the
-  site needs the *artifacts*. The artifacts exist only after CI signs them, so
-  the site would have to run the registry's build pipeline itself, duplicating
-  the signing key handling in a second repository. A submodule would also put
-  binary files into the website repository's history, which this project
-  explicitly avoids.
-- **Release artifacts vs. running the registry's pipeline in the site CI** —
-  same objection, plus it splits the trust story across two repositories.
-- **Release artifacts vs. committing `index.json` to the site repo** — the
-  index is a build output with a `generated_at` stamp; committing it means
-  constant diffs and a merge conflict on every agent update.
-- **Release artifacts vs. a live API** — the site is deliberately
-  zero-build and zero-dependency; an API would add a runtime dependency and a
-  failure mode that a static JSON file does not have.
+If the Cloudflare secrets are missing, the deploy step fails loudly rather
+than silently leaving the site on a stale build.
 
-The field names in `index.json` are deliberately aligned with the main repo's
-`dev/common/sync-agent-hub.py` output, so the site can merge the two
-catalogues with a simple concatenation rather than a translation layer.
+## The website's role
 
-### Merging with the first-party catalogue
+The main site (`acowork.ai`) keeps its own `agents/` page for the platform
+agents that ship with ACowork. That page links to `hub.acowork.ai`; the hub
+page links back. Neither site fetches the other's data — the platform page
+is generated from the main repo's `examples/`, the hub page from this
+repo's `agents/`.
 
-The main repo publishes `agents.json` for the platform agents; this repo
-publishes `index.json` for community agents. The website merges them:
+The two registries are joined by the agent id, not by a merged index: the
+platform agents re-published here keep their original `com.acowork.*` ids,
+so an installed package stays upgradeable instead of forking into a second,
+differently-named agent.
 
-```js
-const all = [...platformAgents.agents, ...communityAgents.agents];
+## Reproducing a release locally
+
+```bash
+# a throwaway key — never published, and NOT in trusted-keys.json
+python tools/make-ci-key.py --output-dir .keys/ci --ephemeral
+
+python tools/validate.py --check-template --strict
+python tools/ci-pack-all.py --out dist --key .keys/ci/registry.key
+python tools/selftest.py --key .keys/ci/registry.key
+python tools/build-index.py --out dist/index.json --packages dist/
+python tools/check-index.py dist/index.json schema/agent.schema.json
+python tools/build-site.py --index dist/index.json --packages dist/ --out dist/site
+python tools/check-site.py --site dist/site
 ```
 
-The field that needs care is `category`. Both indexes carry it, but the two
-derive it differently: the platform pipeline derives it from `role`, this
-repo derives it from the package's `labels` through the hub's
-`label_categories` map (see [`catalog.md`](catalog.md)). Same field name,
-same meaning — "which browse bucket" — so the site can merge and filter the
-union without special-casing.
+Then serve it:
 
-Neither index has a `tier` field, and this repo does not add one.
+```bash
+cd dist/site && python -m http.server 8000
+```
 
-## Consumption contract for `index.json`
-
-- `schema_version: 2`.
-- `agents[]` entries validate against `schema/agent.schema.json`.
-- `agents[].package.sha256` is the sha256 of the `.agent` file named by
-  `agents[].package.file`, relative to the release's `downloads/` directory.
-- `agents[].signature.status` is one of `official-channel`, `third-party`,
-  `unsigned`.
-- `facets` carries precomputed counts; see [`catalog.md`](catalog.md#facet-rules).
-
-## Licensing
-
-- The registry machinery (tooling, schemas, docs) is MIT — see `LICENSE`.
-- Each agent may carry its own `LICENSE` file. When present, that license
-  governs the agent's own content (prompts, skills, avatar) and nothing else.
-- `manifest.license` must carry the SPDX identifier, e.g. `MIT`,
-  `Apache-2.0`, `BSD-3-Clause`, `GPL-3.0-only`, `CC0-1.0`.
-- Permissive licenses are accepted without extra review. Copyleft and
-  source-available licenses are accepted but must be declared in both
-  `manifest.license` and the agent's `LICENSE` file.
-
-## Versioning and deprecation
-
-- The registry has no version tags of its own; releases are dated
-  (`v2026-04-17-a1b2c3d`).
-- An agent is **deprecated** by adding `deprecated = true` to its manifest
-  (a schema change, tracked as an open question). Deprecated agents stay in
-  the index and are excluded from search results by default.
-- An agent is **removed** by deleting its directory in a PR. History keeps the
-  record; the `agent_id` is not reissued.
+A local run with an ephemeral key marks every package `third-party` in the
+index, because the ephemeral key is not in `trusted-keys.json`. That is the
+correct result — it is exactly what a package signed by an unknown key means.
 
 ## Open questions
 
-These are unresolved. Items marked **[assumed]** were decided by default in
-this round so the pipeline could be built; they are expected to be revisited.
-
-1. **Third-party licenses** **[assumed: accepted, must be declared]** — should
-   the registry accept copyleft or source-available agent licenses, or
-   restrict agents to permissive licenses only? Current policy accepts them
-   with a declaration.
-2. **The `category` derivation differs between the two indexes** **[assumed:
-   both are "the browse bucket", so the site can merge them]** — the platform
-   derives it from `role`, this repo from `labels`. If the site ever needs to
-   show *why* an agent is in a category, the two answers read differently.
-   The alternative would be to derive the platform's category from its
-   labels too, which is a main-repo change.
-3. **Deprecated flag** **[assumed: `deprecated = true` in the manifest]** —
-   needs a schema addition and index handling.
-4. **Registry key rotation** **[assumed: supported via `status: revoked`]** —
-   the trusted key set keeps old keys listed; revoking one stops it counting
-   as the official channel. What is still undefined is how a *consumer* that
-   only has a package (no index) decides whether a revoked key matters, and
-   whether a revocation list needs to be distributed alongside the index.
-5. **Yanked packages** **[assumed: removal only]** — a package that turns out
-   to be malicious should be pulled from the index without deleting history;
-   the mechanism (a revocation list consumed by the website) is undefined.
-6. **Per-publisher signing** **[assumed: the registry signs]** — today the
-   registry key signs every package. If contributors should also sign their
-   own packages, the release flow changes materially and the trusted key set
-   would need to distinguish channel keys from publisher keys.
-7. **Trust anchor distribution** **[assumed: the trusted key set lives in
-   this repository]** — a consumer that reads `registry/trusted-keys.json`
-   from this repo trusts the repo. Pinning the key set in `acowork-node`
-   instead would make the trust anchor independent of the repository, at the
-   cost of a slower update path.
-8. **CA / publisher identity** **[assumed: out of scope]** — the main repo's
-   `verify_chain` is still a stub and there is no governance model for a
-   publisher CA. Revisit if agents ever carry executable code, if third-party
-   mirrors appear, or if publishing is split per publisher.
-9. **Rate limits and spam** **[assumed: label-based review only]** — no
-   automated abuse controls yet.
+- **Third-party licenses.** The hub currently accepts an agent whose
+  `hub.json` declares any SPDX expression, including a proprietary one. The
+  platform's own agents are Apache-2.0. Whether the hub should require an
+  OSI-approved license is undecided.
+- **CA governance.** Not implemented. The trigger for revisiting it is an
+  agent that ships executable content, a third-party mirror site, or the
+  need to distinguish publishers from each other.
+- **Key rotation.** `trusted-keys.json` has a `status` field per key and a
+  `revoked` value is defined, but nothing automates rotation or the
+  revocation of a compromised key.
+- **Yanked packages.** A package can be deprecated (kept in the index with
+  a notice) or removed (gone from the index). There is no "yanked" state
+  that keeps the package installable but marks it as withdrawn.
+- **Where the trust anchor belongs.** The trust anchor currently lives in
+  this repository. If the repository itself is compromised, the anchor can
+  be replaced along with it. Pinning it in `acowork-node` — the thing that
+  actually verifies — would be stronger, and is the natural place to
+  revisit.

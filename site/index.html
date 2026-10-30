@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark light" />
+  <meta name="theme-color" content="#0d0e10" />
+
+  <title>Agent Hub &mdash; ACowork</title>
+  <meta name="description" content="The ACowork community agent registry — signed .agent packages from the community and the platform, searchable by role, capability and label." />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="ACowork Agent Hub" />
+  <meta property="og:description" content="Signed .agent packages for ACowork — community and platform agents in one searchable registry." />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <link rel="icon" type="image/svg+xml" href="assets/logo.svg" />
+
+  <link rel="preload" href="assets/fonts/Inter-Variable.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="assets/fonts/JetBrainsMono-Variable.woff2" as="font" type="font/woff2" crossorigin />
+
+  <link rel="stylesheet" href="styles.css?v=1" />
+</head>
+<body>
+
+  <header class="nav">
+    <div class="container nav__inner">
+      <a class="nav__brand" href="https://acowork.ai" aria-label="ACowork home">
+        <img src="assets/logo.svg" alt="ACowork" class="nav__logo" height="34" />
+        <span class="nav__tag">Agent Hub</span>
+      </a>
+      <nav class="nav__links" aria-label="Primary">
+        <a href="https://acowork.ai">Home</a>
+        <a href="https://acowork.ai/agents/">Platform agents</a>
+        <a href="https://github.com/acowork/ACoworkAgentHub" target="_blank" rel="noopener">Repository</a>
+      </nav>
+      <div class="nav__actions">
+        <a class="btn btn--primary btn--sm" href="https://github.com/acowork/ACoworkAgentHub" target="_blank" rel="noopener">Submit an agent</a>
+      </div>
+    </div>
+  </header>
+
+  <main id="top">
+
+    <section class="ah-hero">
+      <div class="container">
+        <p class="ah-kicker"><a href="https://acowork.ai">&larr; ACowork</a></p>
+        <h1>Agent Hub</h1>
+        <p class="ah-lead">
+          Every agent below is a signed <code class="inline">.agent</code> package. Download one, import it
+          in the Desktop App, and it joins the same Gateway as your own agents.
+        </p>
+        <ul class="ah-facts" aria-label="What this page is">
+          <li><strong id="ah-count-total">&mdash;</strong> agents published</li>
+          <li>Each card shows the <strong>permissions</strong> the agent asks for &mdash; read them before you install</li>
+          <li>Source lives in <a href="https://github.com/acowork/ACoworkAgentHub" target="_blank" rel="noopener"><code class="inline">acowork/ACoworkAgentHub</code></a></li>
+        </ul>
+        <p class="ah-alpha">
+          ACowork is in <strong>alpha</strong>. This is a registry, not a store &mdash; there are no reviews, no
+          install counts and no one-click install. A signature here proves the package was not altered and
+          whether it came through the official channel; it is not an endorsement of the agent.
+          <a href="https://github.com/acowork/ACoworkAgentHub/blob/main/docs/trust-model.md" target="_blank" rel="noopener">How trust works</a>.
+        </p>
+      </div>
+    </section>
+
+    <section class="section ah-browse" id="browse">
+      <div class="container">
+
+        <div class="ah-toolbar" role="search">
+          <div class="ah-search">
+            <input id="ah-q" type="search" placeholder="Search agents, roles, capabilities, skills…" aria-label="Search agents" autocomplete="off" />
+            <button id="ah-clear" type="button" class="ah-clear" hidden aria-label="Clear search">&times;</button>
+          </div>
+          <div class="ah-filters">
+            <label class="ah-field">
+              <span class="ah-field__label">Sort</span>
+              <select id="ah-sort" aria-label="Sort agents">
+                <option value="name">Name</option>
+                <option value="category">Category</option>
+                <option value="size">Package size</option>
+              </select>
+            </label>
+            <label class="ah-field">
+              <span class="ah-field__label">Channel</span>
+              <select id="ah-sig" aria-label="Filter by signing channel">
+                <option value="all">All</option>
+                <option value="official-channel">Official channel</option>
+                <option value="third-party">Third party</option>
+              </select>
+            </label>
+            <button id="ah-reset" type="button" class="btn btn--ghost btn--sm">Reset</button>
+          </div>
+        </div>
+
+        <div class="ah-facets">
+          <div class="ah-cats" id="ah-cats" role="group" aria-label="Filter by category"></div>
+          <div class="ah-labels" id="ah-labels" role="group" aria-label="Filter by label"></div>
+        </div>
+
+        <p class="ah-status" id="ah-status" aria-live="polite"></p>
+
+        <div class="ah-grid" id="ah-grid"></div>
+
+        <div class="ah-skeleton" id="ah-skeleton" aria-hidden="true">
+          <div class="ah-card ah-card--skeleton"></div>
+          <div class="ah-card ah-card--skeleton"></div>
+          <div class="ah-card ah-card--skeleton"></div>
+        </div>
+
+        <div class="ah-empty" id="ah-empty" hidden>
+          <h3>Nothing matches</h3>
+          <p>Try a different search term, or clear the filters.</p>
+        </div>
+
+        <div class="ah-error" id="ah-error" hidden>
+          <h3>The registry could not be loaded</h3>
+          <p id="ah-error-msg"></p>
+          <p class="ah-error__hint">
+            The index is generated by the release pipeline. If you are running this page locally,
+            serve it over HTTP (for example <code class="inline">python -m http.server</code>) &mdash;
+            <code class="inline">file://</code> requests are blocked by the browser.
+          </p>
+        </div>
+
+      </div>
+    </section>
+
+    <section class="section section--alt" id="submit">
+      <div class="container">
+        <h2>Publish an agent</h2>
+        <p class="ah-lead">
+          The hub takes pull requests. You keep the source; the pipeline builds, signs and publishes
+          the package for you.
+        </p>
+        <pre class="code"><span class="c-cmd">git</span> clone https://github.com/acowork/ACoworkAgentHub.git
+<span class="c-cmd">cd</span> ACoworkAgentHub
+<span class="c-cmd">cp</span> -r agents/_template agents/<span class="c-var">your-name</span>/<span class="c-var">your-agent</span>
+<span class="c-cmd">python</span> tools/validate.py</pre>
+        <div class="ah-cta">
+          <a class="btn btn--primary" href="https://github.com/acowork/ACoworkAgentHub/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">Contribution guide</a>
+          <a class="btn btn--ghost" href="https://github.com/acowork/ACoworkAgentHub/tree/main/agents/_template" target="_blank" rel="noopener">Template</a>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <p>&copy; ACowork &mdash; <a href="https://acowork.ai">acowork.ai</a> &middot;
+        <a href="https://github.com/acowork/ACoworkAgentHub" target="_blank" rel="noopener">ACoworkAgentHub</a> &middot;
+        <a href="https://github.com/acowork/ACowork" target="_blank" rel="noopener">ACowork</a></p>
+    </div>
+  </footer>
+
+  <!-- agent-hub:data:start -->
+  <!-- agent-hub:data:end -->
+
+  <!-- The page script must load AFTER the snapshot block above: it runs
+       synchronously at parse time and reads the snapshot node on the
+       file:// fallback path, where the node has to already exist. -->
+  <script src="hub.js?v=1"></script>
+
+</body>
+</html>

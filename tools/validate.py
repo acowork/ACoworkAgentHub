@@ -293,6 +293,18 @@ def check_mcp_declarations(manifest: dict, where: str, report: Report) -> None:
 # 4. layout
 # ---------------------------------------------------------------------------
 
+#: Agent-id prefixes the platform owns. A community submission may not use
+#: them - it could then impersonate a platform agent by id alone, which is
+#: exactly the hole the old `com.acowork.` prefix check left open.
+RESERVED_AGENT_ID_PREFIXES = ("com.acowork.", "acowork.", "official.")
+
+#: The one publisher allowed to use those prefixes: the platform itself.
+#: The official channel re-publishes the main repo's example agents under
+#: their original `com.acowork.*` ids so an installed package stays
+#: upgradeable instead of forking into a second, differently-named agent.
+OFFICIAL_PUBLISHER_ID = "acowork:official"
+
+
 def check_layout(agent_dir: Path, owner: str, name: str, manifest: dict | None,
                  hub: dict | None, report: Report, is_template: bool = False) -> None:
     where = f"agents/{owner}/{name}"
@@ -304,11 +316,14 @@ def check_layout(agent_dir: Path, owner: str, name: str, manifest: dict | None,
             report.error(where, f"agent directory `{name}` must be lowercase kebab-case")
 
     if manifest is not None:
-        if manifest.get("name") != name:
-            report.error(
-                where,
-                f"manifest.name `{manifest.get('name')}` must equal the directory name `{name}`",
-            )
+        if not str(manifest.get("name") or "").strip():
+            report.error(where, "manifest.name is required")
+        # manifest.name is the MAIN REPO's field: a human-readable short
+        # name ("Docs", "PM", "QA"). The hub's directory name is a separate
+        # slug used for routing and for the publisher's own tree. Binding
+        # them would force the platform's examples to be renamed, so the
+        # two are deliberately independent - the hub never rewrites
+        # manifest.name.
         if not manifest.get("role"):
             report.error(where, "manifest.role is required - it is core identity information")
         if manifest.get("dev"):
@@ -317,12 +332,19 @@ def check_layout(agent_dir: Path, owner: str, name: str, manifest: dict | None,
                 "manifest.dev must be false - a dev package skips the main repo's "
                 "marketplace and signature checks",
             )
-        for prefix in ("com.acowork.", "acowork.", "official."):
+        publisher_id = ""
+        if isinstance(hub, dict) and isinstance(hub.get("publisher"), dict):
+            publisher_id = str(hub["publisher"].get("id") or "")
+        is_official = publisher_id == OFFICIAL_PUBLISHER_ID
+        for prefix in RESERVED_AGENT_ID_PREFIXES:
             if str(manifest.get("agent_id", "")).startswith(prefix):
+                if is_official:
+                    continue
                 report.error(
                     where,
                     f"agent_id `{manifest.get('agent_id')}` uses the reserved prefix "
-                    f"`{prefix}` - reserved for the platform",
+                    f"`{prefix}` - reserved for the platform. Only "
+                    f"`{OFFICIAL_PUBLISHER_ID}` may publish under it.",
                 )
 
     if not (agent_dir / "README.md").is_file():
@@ -374,6 +396,58 @@ def check_hub_file(hub: dict, agent_dir: Path, owner: str, where: str, report: R
         )
 
 
+def check_official_claim(manifest: dict | None, hub: dict | None, owner: str,
+                         where: str, report: Report) -> None:
+    """Only the platform may publish as the official channel.
+
+    Two separate claims have to be true for a package to pass as official:
+
+      1. it claims the official publisher id, and
+      2. its agent id is on the platform's list in
+         registry/official-publishers.json.
+
+    Without (2), a pull request could name itself `official` and ship an
+    arbitrary agent under a `com.acowork.` id. The list is the platform's
+    explicit, diff-visible statement of what it publishes; adding to it is a
+    reviewed act.
+    """
+    registry_path = REPO_ROOT / "registry" / "official-publishers.json"
+    if not registry_path.is_file():
+        return
+    registry = load_json(registry_path)
+    official_publisher = registry.get("publisher_id", OFFICIAL_PUBLISHER_ID)
+    official_owner = registry.get("owner_dir", "official")
+    allowed_ids = set(registry.get("agents", []))
+
+    publisher = hub.get("publisher") if isinstance(hub, dict) else None
+    pid = publisher.get("id") if isinstance(publisher, dict) else None
+
+    claims_official = pid == official_publisher
+    lives_in_official_dir = owner == official_owner
+
+    if claims_official and not lives_in_official_dir:
+        report.error(
+            where,
+            f"publisher.id `{official_publisher}` may only publish under "
+            f"`agents/{official_owner}/` - this package lives under `agents/{owner}/`",
+        )
+    if lives_in_official_dir and not claims_official:
+        report.error(
+            where,
+            f"`agents/{official_owner}/` is reserved for the official channel - "
+            f"this package must declare publisher.id `{official_publisher}`",
+        )
+    if claims_official and manifest is not None:
+        agent_id = str(manifest.get("agent_id", ""))
+        if agent_id not in allowed_ids:
+            report.error(
+                where,
+                f"agent_id `{agent_id}` is not published by the official channel - "
+                "add it to registry/official-publishers.json if the platform "
+                "really publishes it",
+            )
+
+
 def check_hygiene(agent_dir: Path, where: str, report: Report) -> None:
     policy = load_json(SCHEMA_DIR / "catalog.json").get("package_policy", {})
     forbidden = set(policy.get("forbidden_binary_extensions", []))
@@ -417,9 +491,10 @@ def validate_agent_dir(agent_dir: Path, schema: dict, hub_schema: dict,
     hub = None
     hub_path = agent_dir / "hub.json"
     if hub_path.is_file():
-        hub = load_json( hub_path)
+        hub = load_json(hub_path)
         check_hub_schema(hub, hub_schema, where, report)
         check_hub_file(hub, agent_dir, owner, where, report)
+        check_official_claim(manifest, hub, owner, where, report)
 
     check_layout(agent_dir, owner, name, manifest, hub, report)
     check_hygiene(agent_dir, where, report)

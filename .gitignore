@@ -17,3 +17,6 @@ publisher.sig.tmp
 __pycache__/
 *.pyc
 .venv/
+
+# Local scratch (screenshots, ad-hoc test output)
+dev-tmp/

@@ -1,7 +1,8 @@
 # ACoworkAgentHub
 
-Community agent registry for ACowork. One directory per agent; every binary
-artifact (`.agent` package, `index.json`, sha256 digests, signatures) is
+Community agent registry for ACowork, and the source of
+**hub.acowork.ai**. One directory per agent; every binary artifact
+(`.agent` package, `index.json`, sha256 digests, signatures) is
 produced by CI and is **never** committed to this repository — not on `main`,
 not on a PR branch.
 
@@ -19,6 +20,28 @@ This repo is the **community counterpart**:
 | Directory | flat, one dir per agent | owner-namespaced, one dir per agent |
 | Provenance | built in-repo, signed by platform keys | built in CI, signed by the channel key |
 | Index | `agents.json` for the vendor site | `index.json` for the community registry |
+
+The platform's own agents are mirrored here under `agents/official/`, keeping
+their original `com.acowork.*` ids, so an installed package stays
+upgradeable instead of forking into a second, differently-named agent. The
+main repo remains their source of truth.
+
+## The release loop
+
+```
+pull request ─▶ validate + review ─▶ merge to main
+                                          │
+                                          ▼
+                              publish.yml (one build)
+                                   │            │
+                                   ▼            ▼
+                          GitHub Release    hub.acowork.ai
+                       (index.json, .agent)  (the page)
+```
+
+The Release and the website come from the **same build**, so the page, the
+index and the downloadable packages are always the same snapshot. Full walkthrough:
+[docs/publishing.md](docs/publishing.md).
 
 ## The one rule that shapes everything
 
@@ -49,13 +72,20 @@ ACoworkAgentHub/
 │   └── catalog.json           # hub's categories + the label -> category map
 ├── agents/
 │   ├── _template/                      # authoring template, not indexed
+│   ├── official/<name>/                # the platform's own agents
 │   └── <owner>/<name>/
 │       ├── manifest.toml               # main-repo contract
 │       ├── hub.json                    # hub contract
 │       ├── README.md / LICENSE
 │       ├── prompts/  skills/  assets/
-├── tools/{validate.py,pack.py,build-index.py,signing.py,...}
-├── registry/trusted-keys.json  # the official channel's public keys
+├── site/                       # the hub.acowork.ai page (static, no build step)
+│   ├── index.html  hub.js  styles.css
+│   ├── _headers  CNAME
+│   └── assets/
+├── tools/{validate.py,pack.py,build-index.py,build-site.py,signing.py,...}
+├── registry/
+│   ├── trusted-keys.json        # the official channel's public keys
+│   └── official-publishers.json # which ids the platform publishes
 └── docs/
 ```
 
@@ -104,11 +134,13 @@ Details: [docs/catalog.md](docs/catalog.md).
 ## How publishing works
 
 1. You open a PR adding `agents/<owner>/<name>/`.
-2. `validate.yml` runs schema validation, packaging and a signature smoke test.
+2. `validate.yml` runs schema validation, packaging, a signature smoke test,
+   the main repo's own manifest parser over your package, and a headless
+   browser check of the site it produces.
 3. `review-gate.yml` requires a maintainer approval label before merge.
 4. `publish.yml` runs on `main`: it packs every agent, signs it with the
-   channel key, regenerates `index.json`, and publishes a Release with the
-   packages and the index.
+   channel key, regenerates `index.json`, builds the site, and publishes both
+   a GitHub Release (packages + index) and the site at `hub.acowork.ai`.
 
 Details: [docs/publishing.md](docs/publishing.md).
 
@@ -125,8 +157,11 @@ account it is — and is never rendered as a badge. See
 [docs/trust-model.md](docs/trust-model.md).
 
 The `agent_id` prefixes `com.acowork.`, `acowork.` and `official.` are
-reserved for the platform; the validator rejects community submissions that
-use them.
+reserved for the platform: a community submission using them is rejected. The
+platform's own agents are the exception, and they are pinned by id in
+[`registry/official-publishers.json`](registry/official-publishers.json) —
+claiming the platform identity takes a reviewed change to that file, not just
+a directory name.
 
 ## No binaries
 
