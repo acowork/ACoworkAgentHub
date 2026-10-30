@@ -1,0 +1,65 @@
+{
+  "$comment": "JSON Schema for `hub.json`, the ACoworkAgentHub-specific metadata file that sits NEXT TO `manifest.toml` inside a community agent package. Rationale for a separate file: the main repo re-serialises the parsed manifest on clone/upgrade (`AgentManifest::to_toml`), and serde drops unknown top-level fields — so hub-only fields written into manifest.toml would be silently lost the first time a user clones the agent. A separate file is ignored by the main repo and survives untouched. Every field below earns its place by answering a question the hub must answer; nothing here is decoration.",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ACoworkAgentHub community metadata",
+  "description": "Hub-only metadata for a community agent package. The main repo ignores this file entirely.",
+  "type": "object",
+  "required": ["publisher", "license", "repository"],
+  "additionalProperties": false,
+  "properties": {
+    "publisher": {
+      "type": "object",
+      "description": "Who published this agent to the hub. This is the hub's ACCOUNT identity, and it must match the owner directory in this repository — the hub rejects a submission whose publisher id does not match the `agents/<owner>/` path segment. It is a provenance record (who to contact, who to revoke), NOT a trust or endorsement claim.",
+      "required": ["id"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Account handle in `platform:handle` form, e.g. `github:nicholas`.",
+          "pattern": "^[a-z0-9]+:[a-z0-9][a-z0-9-]*$"
+        },
+        "display_name": {
+          "type": "string",
+          "description": "Human-readable publisher name shown on the site card."
+        },
+        "homepage": {
+          "type": ["string", "null"],
+          "format": "uri",
+          "description": "Publisher's own site, if any."
+        }
+      }
+    },
+    "license": {
+      "type": "string",
+      "description": "SPDX license expression for the agent's source, e.g. `MIT`, `Apache-2.0`, `MIT OR Apache-2.0`. The hub displays it verbatim and refuses to publish an agent with no license. The repository LICENSE covers the tooling; this covers the agent's own content.",
+      "pattern": "^[A-Za-z0-9.+-]+( (AND|OR) [A-Za-z0-9.+-]+)*$"
+    },
+    "repository": {
+      "type": "string",
+      "format": "uri",
+      "description": "Public source repository for the agent. The site links to it so a user can read the code before installing, and so a community agent can be forked rather than only consumed."
+    },
+    "homepage": {
+      "type": ["string", "null"],
+      "format": "uri",
+      "description": "Optional project homepage — documentation, a demo, a changelog. Distinct from `repository`, which is the source of truth for the code."
+    },
+    "deprecated": {
+      "type": "object",
+      "description": "Marks the agent as no longer recommended. The hub keeps the package published and verifiable but surfaces the notice on the site and drops it from the default listing. Used when an agent is superseded or turns out to be broken — removal from the index is the wrong tool for that, because a removed package stops being installable while a deprecation notice keeps the history honest.",
+      "required": ["reason"],
+      "additionalProperties": false,
+      "properties": {
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Shown to users. Say what to use instead."
+        },
+        "successor": {
+          "type": ["string", "null"],
+          "description": "The `agent_id` that replaces this one, if any."
+        }
+      }
+    }
+  }
+}

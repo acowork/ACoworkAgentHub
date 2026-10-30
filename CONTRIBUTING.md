@@ -20,8 +20,8 @@ them appear in an agent directory.
 ## Submission flow
 
 1. **Open an issue** (`.github/ISSUE_TEMPLATE/agent_request.yml`) describing
-   the agent you want to publish. This lets us agree on the category and the
-   tier before you write the manifest.
+   the agent you want to publish. This lets us agree on the labels before you
+   write the manifest — the hub derives the browse category from them.
 2. **Fork and branch** from `main`.
 3. **Copy the template**:
 
@@ -30,10 +30,12 @@ them appear in an agent directory.
    ```
 
 4. **Write the agent**:
-   - `manifest.toml` — the metadata contract (see below),
+   - `manifest.toml` — the main repo's package contract (see below),
+   - `hub.json` — publisher, license, repository (see below),
    - `README.md` — what it does, who it is for, how to use it,
+   - `prompts/system.md` — the system prompt,
    - `skills/<skill-name>/SKILL.md` — one file per repeatable workflow,
-   - `avatar.svg` or `avatar.png` — square, at least 128×128,
+   - `assets/avatar.svg` — square, at least 128×128,
    - `LICENSE` — optional; see [Licensing](#licensing).
 5. **Validate locally**:
 
@@ -48,28 +50,57 @@ them appear in an agent directory.
    `.github/workflows/review-gate.yml`). Merging to `main` triggers the
    publish workflow, which packs, signs and indexes every agent.
 
-## Manifest contract
+## The two metadata files
 
-`schema/manifest.schema.json` is authoritative; `schema/catalog.json` holds
-the taxonomy. Required fields:
+A package has **two** metadata files, and the split is not a matter of
+taste — it is forced by how the main repo handles a manifest. Full rationale:
+[`docs/package-contract.md`](docs/package-contract.md).
+
+| File | Contract | Holds |
+|---|---|---|
+| `manifest.toml` | `schema/manifest.schema.json` | **Only** fields the main repo knows. A faithful mirror of `acowork_core::AgentManifest`. |
+| `hub.json` | `schema/hub.schema.json` | Publisher, license, repository, deprecation notice. |
+
+The main repo re-serialises the parsed manifest when a user clones an agent,
+and serde silently drops unknown fields — so a hub-only field in
+`manifest.toml` would vanish the first time somebody cloned the agent in the
+app. Keep it in `hub.json`.
+
+### `manifest.toml` — required fields
 
 | Field | Meaning |
 |---|---|
 | `agent_id` | Globally unique, reverse-DNS style. `io.github.<you>.<name>` is the convention. |
 | `version` | Semver of the agent. |
 | `name` | Kebab-case machine name; must equal the directory name. |
-| `display_name` | Human-readable name (≤ 64 chars). |
-| `role` | One line: what this agent does. |
-| `description` | 20–600 chars: what it does, who it is for, when to reach for it. |
+| `display_name` | Human-readable name. |
+| `role` | One line: what this agent does. **Required** — it is core identity information. |
+| `description` | What it does, who it is for, when to reach for it. |
 | `author` | Who wrote it. |
-| `category` | One of the taxonomy categories (see `docs/catalog.md`). |
-| `tier` | `core`, `extended` or `advanced` — a capability tier, **not** a trust level. |
-| `tags` | 0–6 tags from the controlled vocabulary. |
-| `publisher.id` | Stable handle, e.g. `github:your-handle`. |
+| `runtime_version` | Which runtime the package needs. |
 
-Optional but recommended: `avatar`, `license`, `repository`, `homepage`,
-`runtime_version`, `permissions`, `tools`, `capabilities`, `llm`, `memory`,
-`resources`, `sandbox`.
+Optional but recommended: `labels`, `avatar`, `identity_deps`,
+`permissions`, `tools`, `mcp_servers`, `capabilities`, `llm`, `memory`,
+`config`, `resources`, `sandbox`, `skills`.
+
+**`labels`** is how the hub files your agent. It is a main-repo field
+(ADR-104): lowercase kebab, 2–32 characters, at most 12. The hub maps your
+labels onto a browse category — see [`docs/catalog.md`](docs/catalog.md).
+Lead with your domain label, because the first label that maps wins.
+
+Do **not** add `category`, `tier`, `tags`, `publisher`, `license` or
+`repository` to the manifest. The schema rejects them.
+
+### `hub.json` — required fields
+
+| Field | Meaning |
+|---|---|
+| `publisher.id` | Stable handle, e.g. `github:your-handle`. Must match the owner directory. |
+| `license` | SPDX expression for your agent's content, e.g. `MIT`. |
+| `repository` | Public source URL. |
+
+Optional: `publisher.display_name`, `publisher.homepage`, `homepage`,
+`deprecated`.
 
 ## Naming rules
 
@@ -93,10 +124,11 @@ things:
    [`registry/trusted-keys.json`](registry/trusted-keys.json), i.e. the
    package came out of this repository's publish pipeline.
 
-The catalog claims (category, tier, tags, skills, permissions, capabilities)
-are covered by the signature too, because they live in `manifest.toml` and
-`manifest.toml` is in the signed digest list. There is no separate
-"capability layer" and no identity binding — see
+The capability claims (labels, skills, permissions, capabilities) are covered
+by the signature too, because they live in `manifest.toml` and
+`manifest.toml` is in the signed digest list — so the browse category the
+hub derives is traceable to signed bytes. There is no separate "capability
+layer" and no identity binding — see
 [`docs/trust-model.md`](docs/trust-model.md) for the full contract and the
 measurements behind it.
 
@@ -117,10 +149,11 @@ A maintainer checks, in this order:
 
 1. **Does it validate?** Schema, taxonomy and layout checks pass.
 2. **Is the metadata honest?** Does the description say what the agent
-   actually does? Is the category right? Is the tier consistent with the
-   declared permissions?
-3. **Is it safe?** No shell-out or sandbox escape without `tier = advanced`
-   and a maintainer sign-off. No credentials, no network exfiltration, no
+   actually does? Do the labels describe what it really does, with the
+   domain label first? Does the declared permission set match what the
+   agent claims to need?
+3. **Is it safe?** Any `Shell` permission, or an MCP server that reaches the
+   network, gets a second look. No credentials, no network exfiltration, no
    obfuscation, no binary blobs.
 4. **Is it useful?** Does it do something the existing catalogue does not?
    Duplicates get declined with a note.
@@ -130,7 +163,8 @@ Things that get declined:
 
 - an agent that is a thin wrapper around one shell script with no skill
   description,
-- an agent whose declared tier contradicts its permissions,
+- an agent whose declared permissions contradict what its skills and
+  description say it needs,
 - anything that resembles credential harvesting or prompt injection aimed at
   the host agent,
 - an agent whose `agent_id` or directory squats on the `com.acowork.` space.

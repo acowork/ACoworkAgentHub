@@ -9,11 +9,13 @@ without special-casing:
     category, category_label, runtime_version, avatar, permissions,
     high_risk_permissions, capabilities, skills, package.{file,size_bytes,sha256}
 
-Community additions: tier, tags, publisher, source, signature.
+Community additions: category (derived from labels), publisher, license,
+  repository, deprecated, source, signature.
 
 The `signature` block reports two independent facts:
   - status: "official-channel" | "third-party" | "unsigned"
-  - catalog_digest_covered: whether category/tier/tags are inside the digest list
+  - catalog_digest_covered: whether the derived category is traceable to a
+    signed manifest field
     (true for every signed package - they live in manifest.toml)
 
 See docs/trust-model.md for what the signature does and does not mean.
@@ -103,23 +105,30 @@ def build_entry(agent_dir: Path, catalog: dict, packages_dir: Path | None) -> di
 
     required = [
         "agent_id", "version", "name", "display_name", "role", "description",
-        "author", "category", "tier",
+        "author", "runtime_version",
     ]
     missing = [k for k in required if not m.get(k)]
     if missing:
         fail(f"{agent_dir}/manifest.toml missing required field(s): {', '.join(missing)}")
 
-    category = m["category"]
+    # The category is DERIVED, never declared. The manifest carries labels
+    # (ADR-104); the hub maps them onto a category through
+    # schema/catalog.json. The main repo has no category concept and needs
+    # none — this mapping lives here, in the hub, and nowhere else.
+    # Labels keep the author's declared order — the first one that maps
+    # wins, because that is the domain the author led with. Sorting them
+    # would let an alphabetical accident pick the category.
+    labels = list(m.get("labels") or [])
+    label_categories = catalog.get("label_categories", {})
+    category = "other"
+    for label in labels:
+        mapped = label_categories.get(label)
+        if mapped:
+            category = mapped
+            break
     if category not in catalog["categories"]:
-        fail(
-            f"{agent_dir}: category {category!r} is not in the taxonomy. "
-            "Add it to schema/catalog.json — the index must not guess."
-        )
+        fail(f"{agent_dir}: derived category {category!r} is not in the taxonomy")
     category_label = catalog["categories"][category]["label"]
-
-    tier = m["tier"]
-    if tier not in catalog["tiers"]:
-        fail(f"{agent_dir}: tier {tier!r} is not in the taxonomy")
 
     owner = agent_dir.parent.name
     name = agent_dir.name
@@ -149,7 +158,26 @@ def build_entry(agent_dir: Path, catalog: dict, packages_dir: Path | None) -> di
         for k, v in sorted((m.get("capabilities") or {}).items())
     ]
 
-    publisher = m.get("publisher") or {}
+    capabilities = [
+        {
+            "key": k,
+            "description": (v or {}).get("description", ""),
+            "skills": sorted((v or {}).get("skills", []) or []),
+        }
+        for k, v in sorted((m.get("capabilities") or {}).items())
+    ]
+
+    # Hub metadata comes from hub.json, never from manifest.toml — the main
+    # repo re-serialises the manifest and would drop unknown fields.
+    hub_path = agent_dir / "hub.json"
+    if not hub_path.is_file():
+        fail(f"{owner}/{name}: hub.json not found - hub metadata is required")
+    try:
+        hub = json.loads(hub_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        fail(f"cannot parse {hub_path}: {exc}")
+
+    publisher = hub.get("publisher") or {}
 
     entry = {
         "agent_id": m["agent_id"],
@@ -161,8 +189,7 @@ def build_entry(agent_dir: Path, catalog: dict, packages_dir: Path | None) -> di
         "author": m["author"],
         "category": category,
         "category_label": category_label,
-        "tier": tier,
-        "tags": sorted(m.get("tags", [])),
+        "labels": labels,
         "runtime_version": m.get("runtime_version", "unknown"),
         "avatar": avatar_out,
         "permissions": permissions,
@@ -172,15 +199,18 @@ def build_entry(agent_dir: Path, catalog: dict, packages_dir: Path | None) -> di
         "publisher": {
             "id": publisher.get("id", "unknown"),
             "display_name": publisher.get("display_name", m["author"]),
-            "affiliation": publisher.get("affiliation", "unknown"),
-            **({"contact": publisher["contact"]} if publisher.get("contact") else {}),
             **({"homepage": publisher["homepage"]} if publisher.get("homepage") else {}),
         },
+        "license": hub.get("license", "unknown"),
+        "repository": hub.get("repository", ""),
+        **({"homepage": hub["homepage"]} if hub.get("homepage") else {}),
         "source": {
             "owner": owner,
             "path": f"agents/{owner}/{name}",
         },
     }
+    if hub.get("deprecated"):
+        entry["deprecated"] = hub["deprecated"]
 
     pkg_path = None
     if packages_dir is not None:
@@ -214,10 +244,10 @@ def describe_signature(pkg_path: Path) -> dict:
     * did it come through the official channel? -> the signer's fingerprint
       must appear in registry/trusted-keys.json.
 
-    Capability metadata (category / tier / tags / skills) is covered by the
+    Capability metadata (labels / skills / capabilities) is covered by the
     digest list for every signed package, because it lives in manifest.toml
-    inside the package. So `catalog_digest_covered` is true whenever the package is
-    signed. See docs/trust-model.md.
+    inside the package. The browse category is derived from those labels,
+    so it is covered too. See docs/trust-model.md.
     """
     import signing
 
@@ -240,15 +270,19 @@ def describe_signature(pkg_path: Path) -> dict:
 
 
 def build_facets(entries: list[dict], catalog: dict) -> dict:
-    """Facet counts for the catalog UI: category, tier, tag."""
+    """Facet counts for the browse UI: category and label.
+
+    The category facet is the primary navigation axis. The label facet is
+    the secondary, cross-cutting one. Both are derived from the same
+    labels; the category is the hub's grouping, the label is the author's
+    own wording.
+    """
     category_counts: dict[str, int] = {}
-    tier_counts: dict[str, int] = {}
-    tag_counts: dict[str, int] = {}
+    label_counts: dict[str, int] = {}
     for entry in entries:
         category_counts[entry["category"]] = category_counts.get(entry["category"], 0) + 1
-        tier_counts[entry["tier"]] = tier_counts.get(entry["tier"], 0) + 1
-        for tag in entry["tags"]:
-            tag_counts[tag] = tag_counts.get(tag, 0) + 1
+        for label in entry.get("labels", []):
+            label_counts[label] = label_counts.get(label, 0) + 1
 
     return {
         "category": [
@@ -259,13 +293,9 @@ def build_facets(entries: list[dict], catalog: dict) -> dict:
             }
             for key in sorted(catalog["categories"])
         ],
-        "tier": [
-            {"key": key, "label": catalog["tiers"][key]["label"], "count": tier_counts.get(key, 0)}
-            for key in sorted(catalog["tiers"])
-        ],
-        "tag": [
-            {"key": key, "count": tag_counts.get(key, 0)}
-            for key in sorted(catalog["tags"])
+        "label": [
+            {"key": key, "count": label_counts.get(key, 0)}
+            for key in sorted(label_counts)
         ],
     }
 
@@ -305,13 +335,13 @@ def main() -> None:
         "schema_version": SCHEMA_VERSION,
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "source": {
-            "repository": args.repo or "https://github.com/acowork/ACoworkAgents",
+            "repository": args.repo or "https://github.com/acowork/ACoworkAgentHub",
             "commit": git_ref(REPO_ROOT),
         },
         "counts": {
             "agents": len(entries),
             "categories": len({e["category"] for e in entries}),
-            "tags": len({t for e in entries for t in e["tags"]}),
+            "labels": len({t for e in entries for t in e.get("labels", [])}),
         },
         "facets": build_facets(entries, catalog),
         "agents": entries,

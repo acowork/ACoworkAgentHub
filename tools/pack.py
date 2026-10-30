@@ -100,7 +100,7 @@ def pack_agent(agent_dir: Path, out_dir: Path, key_path: Path | None) -> dict:
     except Exception as exc:  # noqa: BLE001
         fail(f"cannot parse {manifest_path}: {exc}")
 
-    for required in ("agent_id", "version", "name", "category", "tier"):
+    for required in ("agent_id", "version", "name", "description", "author", "runtime_version"):
         if not manifest.get(required):
             fail(f"{agent_dir}/manifest.toml missing required field {required!r}")
 

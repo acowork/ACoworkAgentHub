@@ -1,30 +1,24 @@
 # Research Agent — an example community agent.
-# Demonstrates the manifest contract: schema/manifest.schema.json
+#
+# manifest.toml is a faithful mirror of the main repo's AgentManifest
+# (core/acowork-core/src/manifest.rs). Do not add hub-only fields here:
+# they live in hub.json, next to this file.
 
 agent_id = "io.github.nicholas.research-agent"
 version = "0.1.0"
 name = "research-agent"
 display_name = "Research Agent"
-role = "Turns a question into a sourced, structured research brief"
-description = "An agent that decomposes a research question, gathers evidence across sources, and produces a brief with explicit citations, confidence levels and open questions."
+role = "Research Analyst"
+description = "Turns a question into a sourced, structured research brief with citations, confidence levels and open questions."
 author = "Nicholas"
 runtime_version = "0.1.0"
-avatar = "avatar.svg"
-license = "MIT"
-repository = "https://github.com/nicholas/research-agent"
-homepage = "https://github.com/nicholas/research-agent"
+avatar = "assets/avatar.svg"
 
-category = "research"
-tier = "core"
-tags = ["research", "summarization", "reporting"]
+# Retrieval / discovery tags (ADR-104). The hub maps these onto browse
+# categories via schema/catalog.json — the manifest never declares a category.
+labels = ["research", "reporting", "summarization"]
 
-identity_deps = ["display_name", "language", "timezone"]
-
-[publisher]
-id = "github:nicholas"
-display_name = "Nicholas"
-affiliation = "community"
-homepage = "https://github.com/nicholas"
+identity_deps = ["language", "timezone"]
 
 [[permissions]]
 type = "FilesystemRead"
@@ -39,16 +33,36 @@ name = "web_fetch"
 name = "http_request"
 
 [[tools]]
-name = "file_write"
-
-[[tools]]
 name = "doc_reader"
 
 [capabilities.question_decomposition]
 description = "Break a broad research question into answerable sub-questions with explicit scope and time bounds"
+skills = ["research-synthesis"]
 
 [capabilities.evidence_gathering]
 description = "Collect and cross-check evidence from multiple sources, recording provenance for every claim"
+skills = ["research-synthesis"]
 
 [capabilities.brief_composition]
 description = "Produce a structured research brief with citations, confidence levels and open questions"
+skills = ["research-synthesis"]
+
+[llm]
+temperature = 0.3
+
+[llm.routing]
+strategy = "quality_priority"
+
+[memory]
+enabled = true
+retention_days = 90
+
+[resources]
+max_memory_mb = 512
+idle_timeout_secs = 1800
+
+[sandbox]
+enabled = false
+
+[skills]
+progressive = true

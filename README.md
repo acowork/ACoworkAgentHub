@@ -1,11 +1,9 @@
-# ACoworkAgents
+# ACoworkAgentHub
 
 Community agent registry for ACowork. One directory per agent; every binary
 artifact (`.agent` package, `index.json`, sha256 digests, signatures) is
 produced by CI and is **never** committed to this repository — not on `main`,
 not on a PR branch.
-
-> Status: skeleton. `docs/` records the design decisions this repo implements.
 
 ## Why this repo exists
 
@@ -19,33 +17,56 @@ This repo is the **community counterpart**:
 |---|---|---|
 | Authors | ACowork core team | community contributors |
 | Directory | flat, one dir per agent | owner-namespaced, one dir per agent |
-| Provenance | built in-repo, signed by platform keys | built in CI, signed by the contributor's key |
+| Provenance | built in-repo, signed by platform keys | built in CI, signed by the channel key |
 | Index | `agents.json` for the vendor site | `index.json` for the community registry |
+
+## The one rule that shapes everything
+
+**A package's `manifest.toml` mirrors the main repo's `AgentManifest` and
+nothing else.** Every field in it exists in the main repo with the same name
+and type. Hub-specific metadata lives in `hub.json`, next to it.
+
+The main repo re-serialises the parsed manifest when a user clones an agent,
+and serde silently drops fields it does not know — so a hub-only field
+written into `manifest.toml` would vanish the first time somebody cloned the
+agent in the app. A separate file has no such failure mode.
+
+Full rationale: [docs/package-contract.md](docs/package-contract.md).
 
 ## Layout
 
 ```
-ACoworkAgents/
+ACoworkAgentHub/
 ├── README.md / CONTRIBUTING.md / CODE_OF_CONDUCT.md / SECURITY.md / LICENSE
 ├── .github/
 │   ├── workflows/{validate.yml,publish.yml,review-gate.yml}
 │   ├── ISSUE_TEMPLATE/{agent_request.yml,bug_report.yml}
 │   └── PULL_REQUEST_TEMPLATE.md
-├── schema/{manifest.schema.json,agent.schema.json,catalog.json}
+├── schema/
+│   ├── manifest.schema.json   # mirror of the main repo's AgentManifest
+│   ├── hub.schema.json        # hub-only metadata
+│   ├── agent.schema.json      # one index.json entry
+│   └── catalog.json           # hub's categories + the label -> category map
 ├── agents/
-│   ├── _template/{manifest.toml,README.md,avatar.svg}   # authoring template, not indexed
-│   └── <owner>/<name>/{manifest.toml,README.md,skills/,avatar.svg,LICENSE}
-├── tools/{validate.py,pack.py,build-index.py,signing.py}
-└── docs/{publishing.md,naming.md,trust-model.md,catalog.md}
+│   ├── _template/                      # authoring template, not indexed
+│   └── <owner>/<name>/
+│       ├── manifest.toml               # main-repo contract
+│       ├── hub.json                    # hub contract
+│       ├── README.md / LICENSE
+│       ├── prompts/  skills/  assets/
+├── tools/{validate.py,pack.py,build-index.py,signing.py,...}
+├── registry/trusted-keys.json  # the official channel's public keys
+└── docs/
 ```
 
 ## Quick start
 
 ```bash
 # 1. copy the template
-cp -r agents/_template agents/<your-github-handle>/<your-agent-name>
+cp -r agents/_template agents/<your-handle>/<your-agent-name>
 
 # 2. edit manifest.toml (contract: schema/manifest.schema.json)
+#    and hub.json (contract: schema/hub.schema.json)
 
 # 3. validate locally — this is exactly what CI runs
 python tools/validate.py
@@ -61,13 +82,32 @@ python tools/pack.py --verify build/<agent_id>.agent
 Python 3.11+ is required (`tomllib`). `jsonschema` and `cryptography` are
 needed for full validation and signing; `pip install jsonschema cryptography`.
 
+## How an agent is filed
+
+The hub has two browse axes and **neither is declared in a package**:
+
+- **category** — one per agent, the primary navigation. Derived by mapping
+  the package's `labels` through `schema/catalog.json`.
+- **labels** — many per agent, the cross-cutting filter. The author's own
+  words, taken straight from `manifest.toml`.
+
+```toml
+labels = ["research", "reporting", "summarization"]
+#          │
+#          └── first label that maps wins -> category "research"
+```
+
+`labels` is a main-repo field (ADR-104), designed for exactly this use. The
+category mapping lives only in this repo, because only the hub needs it.
+Details: [docs/catalog.md](docs/catalog.md).
+
 ## How publishing works
 
 1. You open a PR adding `agents/<owner>/<name>/`.
 2. `validate.yml` runs schema validation, packaging and a signature smoke test.
 3. `review-gate.yml` requires a maintainer approval label before merge.
 4. `publish.yml` runs on `main`: it packs every agent, signs it with the
-   registry key, regenerates `index.json`, and publishes a Release with the
+   channel key, regenerates `index.json`, and publishes a Release with the
    packages and the index.
 
 Details: [docs/publishing.md](docs/publishing.md).
@@ -75,29 +115,39 @@ Details: [docs/publishing.md](docs/publishing.md).
 ## Trust model — read this before you publish
 
 **There is no official badge in this project.** No mechanism here marks an
-agent as official, verified or endorsed. `publisher.affiliation` is
-self-declared metadata and is **not** a trust decision; it must never be
-rendered as a badge. What the signature actually establishes is exactly two
-things: the package was not altered after signing, and it was signed by the
-official channel (its signer fingerprint is in
-[`registry/trusted-keys.json`](registry/trusted-keys.json)).
-See [docs/trust-model.md](docs/trust-model.md).
+agent as official, verified or endorsed, and none is planned. What the
+signature establishes is exactly two things: the package was not altered
+after signing, and it was signed by the official channel (its signer
+fingerprint is in [`registry/trusted-keys.json`](registry/trusted-keys.json)).
+
+`publisher` in `hub.json` is a provenance record — who to contact, whose
+account it is — and is never rendered as a badge. See
+[docs/trust-model.md](docs/trust-model.md).
 
 The `agent_id` prefixes `com.acowork.`, `acowork.` and `official.` are
 reserved for the platform; the validator rejects community submissions that
 use them.
+
+## No binaries
+
+An agent package never carries a binary. Its whole capability surface is
+prompt, skills, built-in tools and MCP — and MCP arrives as a server the
+user installs separately, never as an executable inside the package. The
+main repo rejects inline stdio MCP declarations for the same reason, and
+this repo's validator rejects binary extensions in the tree.
 
 ## Contributing
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) for the submission flow, naming rules,
 signature requirements and review criteria.
 
+- [docs/package-contract.md](docs/package-contract.md) — what goes in manifest.toml vs hub.json, and why
+- [docs/catalog.md](docs/catalog.md) — categories, labels, search and facet rules
 - [docs/publishing.md](docs/publishing.md) — how a submission becomes a published entry
 - [docs/naming.md](docs/naming.md) — directory, id and publisher naming rules
-- [docs/catalog.md](docs/catalog.md) — categories, tiers, tags, search and facet rules
 - [docs/trust-model.md](docs/trust-model.md) — what the signature means and does not mean
 
 ## License
 
-Repository: [MIT](LICENSE). Each agent may carry its own license file; see
-[docs/publishing.md](docs/publishing.md#licensing).
+Repository: [MIT](LICENSE). Each agent declares its own license in
+`hub.json`; see [docs/publishing.md](docs/publishing.md#licensing).

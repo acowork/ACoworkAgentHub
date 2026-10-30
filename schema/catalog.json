@@ -1,90 +1,165 @@
 {
-  "$comment": "Single source of truth for the community catalog taxonomy. tools/validate.py asserts that schema/manifest.schema.json carries the same enum values, so the two cannot drift.",
-  "schema_version": 1,
+  "$comment": "The ACoworkAgentHub browse taxonomy. This file is hub-local: the main repo has no `catalog` concept and does not need one. Categories are NOT declared in a package — they are DERIVED at index time by mapping the package's `labels` (ADR-104) onto a category via `label_categories` below. An agent's category is therefore a property of the hub's taxonomy plus the author's labels, and a label that appears in no mapping contributes to no category.",
+  "schema_version": 2,
+
   "categories": {
-    "engineering": { "label": "Engineering", "description": "Designs, builds or reviews software and infrastructure." },
-    "product": { "label": "Product", "description": "Strategy, discovery, roadmaps, PRDs and launch planning." },
-    "project": { "label": "Project", "description": "Delivery planning, coordination, estimation and progress tracking." },
-    "quality": { "label": "Quality", "description": "Testing, acceptance, review and quality assurance workflows." },
-    "knowledge": { "label": "Knowledge", "description": "Documents, notes, wikis, information architecture and retrieval." },
-    "research": { "label": "Research", "description": "Investigation, literature review, competitive and market analysis." },
-    "data": { "label": "Data", "description": "Data analysis, transformation, pipelines and reporting." },
-    "writing": { "label": "Writing", "description": "Drafting, editing, translation and long-form content." },
-    "devops": { "label": "DevOps", "description": "CI/CD, deployment, monitoring and incident response." },
-    "design": { "label": "Design", "description": "Design systems, visual assets and design review support." },
-    "support": { "label": "Support", "description": "Customer support, triage and service operations." },
-    "education": { "label": "Education", "description": "Teaching, tutoring and curriculum work." },
-    "productivity": { "label": "Productivity", "description": "Personal and team workflow automation." },
-    "other": { "label": "Other", "description": "Anything that does not fit the categories above." }
-  },
-  "tiers": {
-    "core": {
-      "label": "Core",
-      "description": "Single-purpose agent, at most 3 skills, no Shell, Sandbox or out-of-sandbox write permissions.",
-      "constraints": { "max_skills": 3, "forbidden_permissions": ["Shell", "Sandbox"] }
+    "engineering": {
+      "label": "Engineering",
+      "description": "Designs, builds, reviews or debugs software and infrastructure."
     },
-    "extended": {
-      "label": "Extended",
-      "description": "Multi-capability agent, at most 10 skills, may write inside its workspace but never shells out.",
-      "constraints": { "max_skills": 10, "forbidden_permissions": ["Shell", "Sandbox"] }
+    "product": {
+      "label": "Product",
+      "description": "Strategy, discovery, roadmaps, PRDs and launch planning."
     },
-    "advanced": {
-      "label": "Advanced",
-      "description": "Agent that may execute commands or run outside a sandbox. Requires maintainer review before publishing.",
-      "constraints": { "max_skills": null, "forbidden_permissions": [] }
+    "project": {
+      "label": "Project",
+      "description": "Delivery planning, coordination, estimation and progress tracking."
+    },
+    "quality": {
+      "label": "Quality",
+      "description": "Testing, acceptance, review and quality assurance workflows."
+    },
+    "knowledge": {
+      "label": "Knowledge",
+      "description": "Documents, notes, wikis, information architecture and retrieval."
+    },
+    "research": {
+      "label": "Research",
+      "description": "Investigation, literature review, competitive and market analysis."
+    },
+    "data": {
+      "label": "Data",
+      "description": "Data analysis, transformation, pipelines and reporting."
+    },
+    "writing": {
+      "label": "Writing",
+      "description": "Drafting, editing, translation and long-form content."
+    },
+    "devops": {
+      "label": "DevOps",
+      "description": "CI/CD, deployment, monitoring and incident response."
+    },
+    "design": {
+      "label": "Design",
+      "description": "Design systems, visual assets and design review support."
+    },
+    "support": {
+      "label": "Support",
+      "description": "Customer support, triage and service operations."
+    },
+    "education": {
+      "label": "Education",
+      "description": "Teaching, tutoring and curriculum work."
+    },
+    "productivity": {
+      "label": "Productivity",
+      "description": "Personal and team workflow automation."
+    },
+    "other": {
+      "label": "Other",
+      "description": "Anything that does not map to a category above."
     }
   },
-  "tier_semantics": {
-    "$comment": "tier is a CAPABILITY level, not a trust level. It is derived from the agent's own declarations and is never rendered as an official or verified badge. The values are deliberately disjoint from the main repo's official/community vocabulary.",
-    "is_trust_level": false,
-    "renders_as_badge": false
+
+  "$label_categories_comment": "label -> category. A package's labels are looked up here; the first label that maps wins. Labels that appear in no entry simply contribute nothing — the agent still appears under `other` if no label maps. This table is the hub's own taxonomy: the main repo neither knows nor needs it. It is maintained here so that adding a community agent never requires touching the main repo's manifest format.",
+  "label_categories": {
+    "engineering": "engineering",
+    "coding": "engineering",
+    "architecture": "engineering",
+    "code-review": "engineering",
+    "debugging": "engineering",
+    "refactoring": "engineering",
+    "testing": "engineering",
+    "legacy-code": "engineering",
+    "code-generation": "engineering",
+    "codebase-navigation": "engineering",
+
+    "product": "product",
+    "product-strategy": "product",
+    "roadmap": "product",
+    "prd": "product",
+    "user-research": "product",
+    "launch-planning": "product",
+
+    "project": "project",
+    "project-management": "project",
+    "planning": "project",
+    "sprint-planning": "project",
+    "task-decomposition": "project",
+    "stakeholder-communication": "project",
+    "meeting-notes": "project",
+    "progress-tracking": "project",
+
+    "quality": "quality",
+    "test-planning": "quality",
+    "test-case-design": "quality",
+    "defect-management": "quality",
+    "release-acceptance": "quality",
+    "regression-management": "quality",
+
+    "knowledge": "knowledge",
+    "documents": "knowledge",
+    "knowledge-base": "knowledge",
+    "documentation": "knowledge",
+    "notes": "knowledge",
+    "retrieval": "knowledge",
+    "archive-management": "knowledge",
+
+    "research": "research",
+    "competitive-analysis": "research",
+    "literature-review": "research",
+    "market-analysis": "research",
+
+    "data": "data",
+    "data-analysis": "data",
+    "data-pipeline": "data",
+    "reporting": "data",
+    "analytics": "data",
+
+    "writing": "writing",
+    "translation": "writing",
+    "drafting": "writing",
+    "editing": "writing",
+
+    "devops": "devops",
+    "ci-cd": "devops",
+    "deployment": "devops",
+    "monitoring": "devops",
+    "incident-response": "devops",
+    "release": "devops",
+    "migration": "devops",
+
+    "design": "design",
+    "design-system": "design",
+    "visual-assets": "design",
+
+    "support": "support",
+    "customer-support": "support",
+    "triage": "support",
+
+    "education": "education",
+    "tutoring": "education",
+    "curriculum": "education",
+
+    "productivity": "productivity",
+    "automation": "productivity",
+    "workflow": "productivity"
   },
-  "tags": [
-    "automation",
-    "code-review",
-    "code-generation",
-    "compliance",
-    "data-analysis",
-    "data-pipeline",
-    "debugging",
-    "documentation",
-    "education",
-    "evaluation",
-    "git",
-    "incident-response",
-    "integration",
-    "knowledge-base",
-    "language",
-    "llm",
-    "migration",
-    "monitoring",
-    "notes",
-    "planning",
-    "release",
-    "reporting",
-    "research",
-    "retrieval",
-    "security",
-    "summarization",
-    "testing",
-    "translation",
-    "workflow"
-  ],
+
   "reserved_agent_id_prefixes": [
     "com.acowork.",
     "acowork.",
     "official."
   ],
+  "$reserved_comment": "These prefixes belong to the platform. The validator rejects community submissions that use them, so a community agent cannot impersonate a platform agent by id alone. The reserved list is a convention, not a signature claim — the signature establishes only `official-channel` and `not tampered`.",
+
   "package_policy": {
-    "$comment": "An agent package contains no binaries. Its capability surface is exactly prompt + skills + tools + mcp; any binary capability is reached through an stdio MCP server that lives outside the package.",
-    "allowed_top_level": ["manifest.toml", "README.md", "LICENSE", "prompts", "skills", "assets"],
-    "forbidden_suffixes": [
-      ".exe", ".dll", ".so", ".dylib", ".bin", ".class", ".jar", ".wasm",
-      ".msi", ".deb", ".rpm", ".app", ".pyc", ".pyd", ".node"
+    "max_size_bytes": 52428800,
+    "max_size_note": "50 MB, matching the main repo's install-time limit.",
+    "forbidden_binary_extensions": [
+      ".exe", ".dll", ".so", ".dylib", ".bin", ".wasm", ".node", ".msi", ".apk",
+      ".jar", ".pyc", ".o", ".a", ".class", ".pyd"
     ],
-    "mcp_declaration": {
-      "note": "MCP servers are referenced by name only. A package declares the MCP tools it wants; the server binary and its stdio transport configuration are supplied by the runtime, never shipped inside the package.",
-      "tool_prefix": "mcp_"
-    }
+    "$forbidden_note": "An agent package never carries a binary. Its capabilities are prompt, skills, builtin tools and MCP — the last one always through a stdio MCP server the user installs separately, never a binary inside the package. The main repo additionally rejects inline stdio MCP declarations for the same reason. Files under `skills/*/references/` must be inert data."
   }
 }

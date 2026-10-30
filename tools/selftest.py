@@ -117,10 +117,11 @@ def main() -> int:
     args = ap.parse_args()
 
     schema = load_json(ROOT / "schema" / "manifest.schema.json")
+    hub_schema = load_json(ROOT / "schema" / "hub.schema.json")
     catalog = load_json(ROOT / "schema" / "catalog.json")
 
     report = Report()
-    validate_agent_dir(AGENT_DIR, schema, catalog, report)
+    validate_agent_dir(AGENT_DIR, schema, hub_schema, catalog, report)
     for e in report.errors:
         print(f"[validate] ERROR {e}")
     if report.errors:

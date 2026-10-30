@@ -53,6 +53,18 @@ jobs:
           python tools/build-index.py --out dist/index.json --packages dist/
           python tools/check-index.py dist/index.json schema/agent.schema.json
 
+      # The manifest schema is a MIRROR of the main repo's AgentManifest, and
+      # a mirror can drift. Only the main repo's real parser can settle
+      # whether a package would install, so the guard runs there.
+      - name: Interop check against the main repo
+        env:
+          MAIN_REPO: ${{ github.event.repository.fork || 'acowork/ACowork' }}
+        run: |
+          git clone --depth 1 "https://github.com/$MAIN_REPO.git" ../main-repo
+          cp tools/interop-test/main_repo_interop.rs              ../main-repo/core/acowork-core/tests/hub_interop.rs
+          cd ../main-repo/core
+          cargo test -p acowork-core --test hub_interop
+
       - name: Upload packages and index as artifacts
         if: always()
         uses: actions/upload-artifact@v4

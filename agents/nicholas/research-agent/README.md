@@ -20,12 +20,30 @@ Turns a research question into a sourced, structured research brief.
 ## Requirements
 
 - Network access for source gathering.
-- Read access to the working directory; write access for the output brief.
+- Read access to the working directory.
 
 ## Usage
 
 Ask the agent a research question and a time bound. It returns a Markdown
-brief plus a machine-readable `sources.json` next to it.
+brief with inline citations, a confidence level per section, and an explicit
+list of open questions.
+
+## Files
+
+| Path | What it is |
+|---|---|
+| `manifest.toml` | Package declaration - a mirror of the main repo's `AgentManifest` |
+| `hub.json` | Hub metadata: publisher, license, repository |
+| `prompts/system.md` | The system prompt |
+| `skills/research-synthesis/SKILL.md` | The research workflow |
+| `assets/avatar.svg` | Avatar |
+
+## Labels
+
+`research` · `reporting` · `summarization`
+
+The hub maps labels onto browse categories; the manifest never declares a
+category itself.
 
 ## License
 

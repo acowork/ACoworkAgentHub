@@ -1,0 +1,10 @@
+{
+  "publisher": {
+    "id": "github:your-handle",
+    "display_name": "Your Name",
+    "homepage": "https://github.com/your-handle"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/your-handle/your-agent",
+  "homepage": null
+}

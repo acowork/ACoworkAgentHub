@@ -86,13 +86,15 @@ agents/
 | `url` | `url:https://example.com/me` | any other URL |
 
 Rules: the scheme is lowercase; the value is 2–64 characters; the value must
-not contain whitespace. The handle is **signed** — it cannot be changed after
-signing — but it is **not verified**: nothing here checks that the account
-exists or belongs to the person it names.
+not contain whitespace. The handle lives in `hub.json`, not in the manifest,
+and the hub requires it to match the `agents/<owner>/` directory segment — a
+submission may only publish under its own account.
 
-`publisher.affiliation` is one of `community`, `acowork-maintained`,
-`third-party`, `unknown`. It is self-declared metadata. It is never rendered
-as an official or verified badge.
+The handle is a **provenance record**: who to contact, whose account it is,
+who to revoke. It is **not verified** — nothing here checks that the account
+exists or belongs to the person it names — and it is never rendered as an
+official or verified badge. There is deliberately no `affiliation` field: a
+self-declared "official" value would be an unofficial official badge.
 
 ## Version rules
 
@@ -101,8 +103,8 @@ as an official or verified badge.
   behaviour.
 - `MINOR` — new capability or skill.
 - `PATCH` — wording, bug fixes, no behaviour change.
-- The version in `manifest.version` and in the signed `catalog.version` must
-  match; `tools/pack.py` enforces it.
+- `manifest.version` is the single source of truth for the package version.
+  The index copies it; there is no second version field to keep in sync.
 
 ## Reserved words
 

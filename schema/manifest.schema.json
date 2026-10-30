@@ -1,183 +1,85 @@
 {
+  "$comment": "JSON Schema for the `manifest.toml` of an agent package, mirroring the main repo's `acowork_core::AgentManifest` (core/acowork-core/src/manifest.rs). This file is a MIRROR, not an invention: every property here exists in the main repo with the same name, type and constraint. Community-specific metadata does NOT live here — it lives in `hub.json` (see schema/hub.schema.json), because the main repo re-serialises the parsed manifest on clone/upgrade and would silently drop unknown top-level fields.",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://acowork.dev/schemas/manifest.schema.json",
-  "title": "ACowork community agent manifest",
-  "description": "Schema for agents/<owner>/<name>/manifest.toml, parsed from TOML into JSON before validation. Enum values for category/tier/tags are mirrored from schema/catalog.json; tools/validate.py fails if the two drift apart.",
+  "title": "Agent package manifest.toml",
+  "description": "Schema for agents/<owner>/<name>/manifest.toml, parsed from TOML into JSON before validation. This is a faithful mirror of the main repo's AgentManifest; it must not drift from it.",
   "type": "object",
   "required": [
     "agent_id",
     "version",
     "name",
-    "display_name",
-    "role",
     "description",
     "author",
-    "category",
-    "tier",
-    "publisher"
+    "runtime_version"
   ],
   "additionalProperties": false,
   "properties": {
     "agent_id": {
       "type": "string",
-      "description": "Globally unique reverse-DNS style id. Must not start with a reserved prefix (com.acowork., acowork., official.).",
-      "pattern": "^[a-z0-9][a-z0-9.-]{2,63}$"
+      "description": "Reverse-domain package identity, e.g. `com.example.weather`. The main repo requires a `.` in the value. This is PACKAGE identity only — never a runtime instance id.",
+      "pattern": "^[^.]+\\.[^.]+"
     },
     "version": {
       "type": "string",
-      "description": "Semver of the agent itself.",
-      "pattern": "^[0-9]+[.][0-9]+[.][0-9]+(?:-[0-9A-Za-z.-]+)?(?:[+][0-9A-Za-z.-]+)?$"
+      "description": "Semantic version of the package.",
+      "pattern": "^\\d+\\.\\d+\\.\\d+"
     },
     "name": {
       "type": "string",
-      "description": "Short machine name, kebab-case.",
-      "pattern": "^[a-z0-9][a-z0-9-]{1,48}$"
+      "minLength": 1,
+      "description": "Human-readable name."
     },
     "display_name": {
       "type": "string",
-      "minLength": 1,
-      "maxLength": 64
+      "description": "Short display name for chat UI. Defaults to `name` when absent."
     },
     "role": {
       "type": "string",
-      "description": "One-line role statement, free text.",
-      "minLength": 1,
-      "maxLength": 120
+      "description": "Agent role / job title, e.g. `Project Manager`. Shown in the UI. The hub requires this for community agents — it is core identity information, not decoration."
+    },
+    "avatar": {
+      "type": "string",
+      "description": "Path to an avatar image inside the package, e.g. `assets/avatar.png`. Highest priority; falls back to `builtin_avatar`, then to a random bundled icon."
+    },
+    "builtin_avatar": {
+      "type": "string",
+      "description": "Bundled avatar index chosen at packaging time, e.g. `icon-05` or `5`."
     },
     "description": {
       "type": "string",
-      "description": "What the agent does and who it is for.",
-      "minLength": 20,
-      "maxLength": 600
+      "minLength": 1,
+      "description": "Short description of what the agent does."
     },
     "author": {
       "type": "string",
       "minLength": 1,
-      "maxLength": 120
-    },
-    "category": {
-      "type": "string",
-      "enum": [
-        "engineering",
-        "product",
-        "project",
-        "quality",
-        "knowledge",
-        "research",
-        "data",
-        "writing",
-        "devops",
-        "design",
-        "support",
-        "education",
-        "productivity",
-        "other"
-      ]
-    },
-    "tier": {
-      "type": "string",
-      "description": "Capability level, NOT a trust level. Declared by the author, and the validator checks it against the agent's own declared permissions and skill count (the per-tier constraints live in schema/catalog.json). Never rendered as an official/verified badge. Deliberately disjoint from the main repo's permission tiers (Agent/Attribution/Admin/Claim) and from its signer identities (Developer/Platform/CaIssued). The constraints per tier live in schema/catalog.json and are enforced by tools/validate.py. This field lives in manifest.toml, which is inside the package's digest list, so the signature covers it.",
-      "enum": ["core", "extended", "advanced"]
-    },
-    "tags": {
-      "type": "array",
-      "description": "Secondary facets. Values are drawn from the controlled vocabulary in schema/catalog.json.",
-      "uniqueItems": true,
-      "maxItems": 6,
-      "items": {
-        "type": "string",
-        "enum": [
-          "automation",
-          "code-review",
-          "code-generation",
-          "compliance",
-          "data-analysis",
-          "data-pipeline",
-          "debugging",
-          "documentation",
-          "education",
-          "evaluation",
-          "git",
-          "incident-response",
-          "integration",
-          "knowledge-base",
-          "language",
-          "llm",
-          "migration",
-          "monitoring",
-          "notes",
-          "planning",
-          "release",
-          "reporting",
-          "research",
-          "retrieval",
-          "security",
-          "summarization",
-          "testing",
-          "translation",
-          "workflow"
-        ]
-      }
+      "description": "Author identifier."
     },
     "runtime_version": {
       "type": "string",
-      "pattern": "^[0-9]+[.][0-9]+[.][0-9]+$"
+      "minLength": 1,
+      "description": "Minimum compatible Agent Runtime version, e.g. `0.1.0`."
     },
-    "avatar": {
-      "type": "string",
-      "description": "Path relative to the agent directory. .png or .svg.",
-      "pattern": "^[A-Za-z0-9_.-]+[.](png|svg)$"
-    },
-    "license": {
-      "type": "string",
-      "description": "SPDX license identifier for this agent's content.",
-      "pattern": "^[A-Za-z0-9.+-]+$"
-    },
-    "repository": {
-      "type": "string",
-      "format": "uri"
-    },
-    "homepage": {
-      "type": "string",
-      "format": "uri"
-    },
-    "publisher": {
-      "type": "object",
-      "description": "Who published this agent. Self-asserted metadata: it is inside manifest.toml and therefore covered by the package's digest list (it cannot be altered after signing), but it is NOT verified against any trust root and is never a trust input. See docs/trust-model.md.",
-      "required": ["id", "display_name"],
-      "additionalProperties": false,
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Stable publisher handle, e.g. github:nicholas.",
-          "pattern": "^[a-z][a-z0-9+.-]*:[a-zA-Z0-9][a-zA-Z0-9._-]{1,63}$"
-        },
-        "display_name": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 64
-        },
-        "contact": {
-          "type": "string",
-          "maxLength": 200
-        },
-        "homepage": {
-          "type": "string",
-          "format": "uri"
-        },
-        "affiliation": {
-          "type": "string",
-          "description": "Self-declared relationship to the ACowork project. Purely informational. There is deliberately NO value expressing official status: any such value would be an unofficial 'official badge', forgeable and not backed by the signature. See docs/trust-model.md.",
-          "enum": ["community", "third-party", "unknown"]
-        }
+    "labels": {
+      "type": "array",
+      "description": "Retrieval / discovery tags (ADR-104). A label is a filter dimension only — not a capability, not a skill name, not the role. The hub derives the browse category from these via the label->category map in schema/catalog.json.",
+      "maxItems": 12,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+        "minLength": 2,
+        "maxLength": 32
       }
     },
     "identity_deps": {
       "type": "array",
+      "description": "System Agent identity fields this agent depends on, e.g. `[\"language\", \"timezone\"]`.",
       "items": { "type": "string" }
     },
     "permissions": {
       "type": "array",
+      "description": "Declared permissions. The main repo rejects unknown permission types outright, so this enum is exact.",
       "items": {
         "type": "object",
         "required": ["type"],
@@ -186,41 +88,277 @@
           "type": {
             "type": "string",
             "enum": [
+              "Network",
               "FilesystemRead",
               "FilesystemWrite",
-              "Network",
+              "IntentSend",
+              "IntentReceive",
+              "IdentityRead",
+              "IdentityWrite",
               "Shell",
-              "Sandbox"
+              "Wasm",
+              "RagQuery"
             ]
           },
-          "path": { "type": "string" }
+          "value": {
+            "type": ["string", "null"],
+            "description": "Optional scope: a URL for Network, a path for the filesystem permissions, an agent id for the intent permissions, a URL pattern for RagQuery."
+          }
+        }
+      }
+    },
+    "triggers": {
+      "type": "array",
+      "description": "Activation triggers (cron, event, manual).",
+      "items": {
+        "type": "object",
+        "required": ["type"],
+        "additionalProperties": false,
+        "properties": {
+          "type": { "type": "string" },
+          "schedule": { "type": ["string", "null"] },
+          "action": { "type": ["string", "null"] },
+          "params": { "type": ["object", "null"] },
+          "event": { "type": ["string", "null"] }
         }
       }
     },
     "tools": {
       "type": "array",
+      "description": "Builtin tool opt-in declarations (ADR-029). Each entry seeds `agent_tools.json` with `enabled = true` on first start.",
       "items": {
         "type": "object",
         "required": ["name"],
         "additionalProperties": false,
         "properties": {
-          "name": { "type": "string" }
+          "type": {
+            "type": "string",
+            "default": "builtin",
+            "description": "Tool type. `builtin` for the runtime's built-in tools, `rag` for an enterprise RAG endpoint."
+          },
+          "name": { "type": "string" },
+          "config": { "type": ["object", "null"] },
+          "rag": {
+            "type": ["object", "null"],
+            "description": "RAG configuration. Only meaningful when `type` is `rag`.",
+            "required": ["endpoint"],
+            "properties": {
+              "endpoint": { "type": "string" },
+              "collection": { "type": ["string", "null"] },
+              "auth_ref": { "type": ["string", "null"] },
+              "auth_type": { "type": "string" },
+              "max_results": { "type": "integer" },
+              "score_threshold": { "type": "number" },
+              "timeout_secs": { "type": "integer" }
+            }
+          }
+        }
+      }
+    },
+    "mcp_servers": {
+      "type": "array",
+      "description": "Recommended MCP servers (ADR-104). A recommendation, not a dependency: the user confirms installation and activation. Each entry must pick exactly ONE form — `preset`, `hosted`, or an inline remote endpoint. Inline stdio is rejected by the main repo, because a package must not name an executable to run on the user's machine.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Explicit identity key. Defaults to the preset / hosted id."
+          },
+          "preset": {
+            "type": "string",
+            "description": "Platform preset id from the MCP preset registry."
+          },
+          "hosted": {
+            "type": "string",
+            "description": "Gateway-hosted server id, e.g. `memory`, `pm`, `doc`."
+          },
+          "transport": {
+            "type": "string",
+            "enum": ["http", "sse"],
+            "description": "Transport for the inline form. `stdio` is not allowed in a package."
+          },
+          "url": {
+            "type": "string",
+            "description": "Inline remote endpoint URL. Must be http(s) and covered by a `Network` permission."
+          },
+          "required_secrets": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "tools": {
+            "type": "array",
+            "description": "Tool-name whitelist the agent expects.",
+            "items": { "type": "string" }
+          },
+          "required": {
+            "type": "boolean",
+            "description": "Soft requirement: unmet never blocks startup. The gap is shown in the Tools panel."
+          },
+          "why": {
+            "type": "string",
+            "description": "Author's reason, shown verbatim in the Tools panel."
+          }
         }
       }
     },
     "capabilities": {
       "type": "object",
+      "description": "Capability advertisements for Intent routing. A capability is an outward contract other agents address through an intent; a skill is an internal workflow. The relation is many-to-many via `skills`.",
       "additionalProperties": {
         "type": "object",
+        "required": ["description"],
         "additionalProperties": false,
         "properties": {
-          "description": { "type": "string" }
+          "description": { "type": "string", "minLength": 1 },
+          "skills": {
+            "type": "array",
+            "description": "Skills that implement this capability. Documentation and validation link only — the runtime does not load a skill because it is listed here.",
+            "items": { "type": "string" }
+          },
+          "input_schema": { "type": ["object", "null"] },
+          "output_schema": { "type": ["object", "null"] }
         }
       }
     },
-    "llm": { "type": "object" },
-    "memory": { "type": "object" },
-    "resources": { "type": "object" },
-    "sandbox": { "type": "object" }
+    "llm": {
+      "type": "object",
+      "description": "LLM configuration. Provider and model selection is governed globally by the Gateway, not by the manifest.",
+      "additionalProperties": false,
+      "properties": {
+        "max_tokens": { "type": "integer" },
+        "temperature": { "type": "number", "minimum": 0.0, "maximum": 2.0 },
+        "context_window": { "type": "integer" },
+        "fallback_providers": { "type": "array", "items": { "type": "string" } },
+        "providers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "model": { "type": "string" },
+              "api_key_ref": { "type": ["string", "null"] },
+              "base_url": { "type": ["string", "null"] },
+              "params": { "type": ["object", "null"] }
+            }
+          }
+        },
+        "routing": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "properties": {
+            "strategy": { "type": "string" },
+            "fallback_order": { "type": "array", "items": { "type": "string" } },
+            "auto_switch": { "type": "boolean" }
+          }
+        },
+        "budget": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "properties": {
+            "max_tokens_per_request": { "type": "integer" },
+            "max_cost_per_request_usd": { "type": "number" },
+            "max_output_tokens": { "type": "integer" },
+            "exceeded_action": { "type": "string" }
+          }
+        }
+      }
+    },
+    "memory": {
+      "type": "object",
+      "description": "Memory system configuration.",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "retention_days": { "type": "integer" },
+        "quality": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "properties": {
+            "exclude_dormant": { "type": "boolean" },
+            "min_cosine": { "type": "number" },
+            "keyword_index": { "type": "boolean" },
+            "dedup": {
+              "type": ["object", "null"],
+              "additionalProperties": false,
+              "properties": {
+                "knowledge_threshold": { "type": "number" },
+                "procedure_threshold": { "type": "number" }
+              }
+            },
+            "consolidation": {
+              "type": ["object", "null"],
+              "additionalProperties": false,
+              "properties": {
+                "direct_active_threshold": { "type": "number" },
+                "generalization_active_threshold": { "type": "number" },
+                "promoted_passive_threshold": { "type": "number" },
+                "dormant_confidence": { "type": "number" },
+                "min_pending_age_hours": { "type": "number" }
+              }
+            }
+          }
+        },
+        "distiller": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "model_provider_id": { "type": ["string", "null"] },
+            "model_id": { "type": ["string", "null"] },
+            "interval_minutes": { "type": "integer" },
+            "accumulation_threshold": { "type": "integer" },
+            "idle_minutes": { "type": "integer" },
+            "batch_size": { "type": "integer" },
+            "min_importance": { "type": "number" }
+          }
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "description": "Resource limits for the agent process.",
+      "additionalProperties": false,
+      "properties": {
+        "max_memory_mb": { "type": "integer" },
+        "max_cpu_percent": { "type": "number" },
+        "idle_timeout_secs": { "type": "integer" }
+      }
+    },
+    "sandbox": {
+      "type": "object",
+      "description": "Sandbox configuration.",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "work_dir": { "type": ["string", "null"] },
+        "allowed_paths": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "skills": {
+      "type": "object",
+      "description": "Skill injection mode. `progressive = true` injects a compact summary of available skills into the system prompt.",
+      "additionalProperties": false,
+      "properties": {
+        "progressive": { "type": "boolean" }
+      }
+    },
+    "config": {
+      "type": "object",
+      "description": "Package-author defaults for `agent_config.json` (ADR-104). Seeded by the Runtime on first start; never overwrites a value the user already set.",
+      "additionalProperties": false,
+      "properties": {
+        "temperature": { "type": "number", "minimum": 0.0, "maximum": 2.0 },
+        "context_window": { "type": "integer", "minimum": 1 },
+        "max_output_tokens": { "type": "integer", "minimum": 1 },
+        "max_iterations": { "type": "integer", "minimum": 1 },
+        "compression_ratio_threshold": { "type": "number", "minimum": 0.05, "maximum": 0.95 }
+      }
+    },
+    "dev": {
+      "type": "boolean",
+      "description": "Marks the package as locally authored. The main repo skips marketplace / signature checks for a dev package; the hub rejects `dev = true` from community submissions."
+    }
   }
 }

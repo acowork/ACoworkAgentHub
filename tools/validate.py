@@ -3,10 +3,15 @@
 
 Checks, in order of cost:
 
-  1. schema   - every manifest.toml validates against schema/manifest.schema.json
-  2. catalog  - schema enums and schema/catalog.json agree (no taxonomy drift)
-  3. layout   - directory shape, required files, skill layout, naming rules
-  4. hygiene  - no binaries, no index.json, no stray secrets
+  1. schema   - manifest.toml validates against schema/manifest.schema.json
+                (a mirror of the main repo's AgentManifest) and hub.json
+                against schema/hub.schema.json
+  2. catalog  - every label the agent declares is either mapped to a
+                category or explicitly unmapped, and the map is coherent
+  3. graph    - capability -> skill references resolve, and every skill
+                directory is reachable (the main repo's validate_graph)
+  4. layout   - directory shape, required files, skill layout, naming rules
+  5. hygiene  - no binaries, no index.json, no stray secrets
 
 Usage:
     python tools/validate.py                 # validate every agent
@@ -39,15 +44,15 @@ AGENTS_DIR = REPO_ROOT / "agents"
 #: Directories under agents/ that are not agents.
 TEMPLATE_DIRS = {"_template"}
 
-#: Binary/artifact extensions that must never be committed.
-FORBIDDEN_SUFFIXES = {
-    ".agent", ".zip", ".tar", ".gz", ".tgz", ".7z", ".rar",
-    ".exe", ".dll", ".so", ".dylib", ".class", ".jar", ".wasm",
-    ".png-index", ".pyc",
-}
-
 OWNER_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$")
 NAME_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?$")
+LABEL_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+
+#: Mirrors the main repo's `is_valid_label`: lowercase kebab, 2-32 chars.
+MIN_LABEL_LEN = 2
+MAX_LABEL_LEN = 32
+#: Mirrors the main repo's `MAX_MANIFEST_LABELS`.
+MAX_LABELS = 12
 
 
 class Report:
@@ -71,50 +76,31 @@ def load_json(path: Path):
         sys.exit(f"[validate] FATAL: {path} is not valid JSON: {exc}. Exit 2")
 
 
-def load_manifest(agent_dir: Path, report: Report) -> dict | None:
-    manifest_path = agent_dir / "manifest.toml"
+def load_toml(path: Path, where: str, report: Report) -> dict | None:
     try:
-        return tomllib.loads(manifest_path.read_text(encoding="utf-8"))
+        return tomllib.loads(path.read_text(encoding="utf-8"))
     except Exception as exc:  # noqa: BLE001 - report, do not crash the run
-        report.error(str(agent_dir), f"cannot parse manifest.toml: {exc}")
+        report.error(where, f"cannot parse {path.name}: {exc}")
         return None
 
 
-def check_catalog_drift(schema: dict, catalog: dict, report: Report) -> None:
-    """schema/manifest.schema.json and schema/catalog.json must not drift."""
-    props = schema.get("properties", {})
+def discover_agent_dirs() -> list[Path]:
+    """All agent directories: agents/<owner>/<name>/ (one level of owner)."""
+    if not AGENTS_DIR.is_dir():
+        return []
+    found = []
+    for owner_dir in sorted(AGENTS_DIR.iterdir()):
+        if not owner_dir.is_dir() or owner_dir.name.startswith("_") or owner_dir.name.startswith("."):
+            continue
+        for name_dir in sorted(owner_dir.iterdir()):
+            if name_dir.is_dir() and (name_dir / "manifest.toml").is_file():
+                found.append(name_dir)
+    return found
 
-    schema_categories = set(props.get("category", {}).get("enum", []))
-    catalog_categories = set(catalog.get("categories", {}).keys())
-    if schema_categories != catalog_categories:
-        only_schema = sorted(schema_categories - catalog_categories)
-        only_catalog = sorted(catalog_categories - schema_categories)
-        report.error(
-            "schema",
-            "category enum differs from schema/catalog.json "
-            f"(only in manifest schema: {only_schema}; only in catalog: {only_catalog})",
-        )
 
-    schema_tiers = set(props.get("tier", {}).get("enum", []))
-    catalog_tiers = set(catalog.get("tiers", {}).keys())
-    if schema_tiers != catalog_tiers:
-        report.error(
-            "schema",
-            "tier enum differs from schema/catalog.json "
-            f"(only in manifest schema: {sorted(schema_tiers - catalog_tiers)}; "
-            f"only in catalog: {sorted(catalog_tiers - schema_tiers)})",
-        )
-
-    schema_tags = set(props.get("tags", {}).get("items", {}).get("enum", []))
-    catalog_tags = set(catalog.get("tags", []))
-    if schema_tags != catalog_tags:
-        report.error(
-            "schema",
-            "tag vocabulary differs from schema/catalog.json "
-            f"(only in manifest schema: {sorted(schema_tags - catalog_tags)}; "
-            f"only in catalog: {sorted(catalog_tags - schema_tags)})",
-        )
-
+# ---------------------------------------------------------------------------
+# 1. schema
+# ---------------------------------------------------------------------------
 
 def check_manifest_schema(manifest: dict, schema: dict, where: str, report: Report) -> None:
     try:
@@ -134,200 +120,309 @@ def check_manifest_schema(manifest: dict, schema: dict, where: str, report: Repo
         report.error(where, f"schema: {loc}: {err.message}")
 
 
+def check_hub_schema(hub: dict, schema: dict, where: str, report: Report) -> None:
+    try:
+        import jsonschema
+    except ModuleNotFoundError:
+        return
+
+    validator = jsonschema.Draft202012Validator(schema)
+    errors = sorted(validator.iter_errors(hub), key=lambda e: list(e.absolute_path))
+    for err in errors:
+        loc = "/".join(str(p) for p in err.absolute_path) or "<root>"
+        report.error(where, f"hub schema: {loc}: {err.message}")
+
+
+def check_catalog_coherence(catalog: dict, report: Report) -> None:
+    """The category map must point at categories that exist."""
+    categories = set(catalog.get("categories", {}).keys())
+    mapping = catalog.get("label_categories", {})
+    if not mapping:
+        report.error("schema/catalog.json", "label_categories is empty")
+        return
+    for label, category in sorted(mapping.items()):
+        if category not in categories:
+            report.error(
+                "schema/catalog.json",
+                f"label `{label}` maps to unknown category `{category}`",
+            )
+        if not LABEL_RE.match(label):
+            report.error(
+                "schema/catalog.json",
+                f"label key `{label}` is not a valid manifest label",
+            )
+
+
+# ---------------------------------------------------------------------------
+# 2. labels / category derivation
+# ---------------------------------------------------------------------------
+
+def check_labels(manifest: dict, catalog: dict, where: str, report: Report) -> None:
+    """Mirror the main repo's label rules, then check the category mapping."""
+    labels = manifest.get("labels", [])
+    if not isinstance(labels, list):
+        report.error(where, "labels must be an array")
+        return
+
+    if len(labels) > MAX_LABELS:
+        report.error(where, f"labels: at most {MAX_LABELS} allowed, got {len(labels)}")
+
+    seen: set[str] = set()
+    mapping = catalog.get("label_categories", {})
+    for label in labels:
+        if not isinstance(label, str):
+            report.error(where, f"labels: `{label!r}` is not a string")
+            continue
+        if not (MIN_LABEL_LEN <= len(label) <= MAX_LABEL_LEN) or not LABEL_RE.match(label):
+            report.error(
+                where,
+                f"labels: `{label}` is invalid - lowercase letters, digits and hyphens "
+                f"only, {MIN_LABEL_LEN}-{MAX_LABEL_LEN} chars",
+            )
+            continue
+        if label in seen:
+            report.error(where, f"labels: duplicate `{label}`")
+        seen.add(label)
+
+    if not labels:
+        report.warn(
+            where,
+            "no labels declared - the agent cannot be filed under any category "
+            "and will only appear under 'other'",
+        )
+        return
+
+    if not any(label in mapping for label in labels):
+        report.warn(
+            where,
+            f"none of the labels {labels} map to a category in schema/catalog.json - "
+            "the agent will be filed under 'other'. Add the label to "
+            "label_categories, or use a mapped label.",
+        )
+
+
+# ---------------------------------------------------------------------------
+# 3. declaration graph (the main repo's validate_graph)
+# ---------------------------------------------------------------------------
+
+def skill_names(agent_dir: Path) -> list[str]:
+    skills_dir = agent_dir / "skills"
+    if not skills_dir.is_dir():
+        return []
+    names = []
+    for child in sorted(skills_dir.iterdir()):
+        if child.is_dir() and (child / "SKILL.md").is_file():
+            names.append(child.name)
+    return names
+
+
+def check_capability_graph(manifest: dict, agent_dir: Path, where: str, report: Report) -> None:
+    """A capability may only link a skill that is really shipped."""
+    available = set(skill_names(agent_dir))
+    capabilities = manifest.get("capabilities", {})
+    if not isinstance(capabilities, dict):
+        return
+    for action, def_ in capabilities.items():
+        if not isinstance(def_, dict):
+            continue
+        linked = def_.get("skills", [])
+        for skill in linked:
+            if skill not in available:
+                report.error(
+                    where,
+                    f"capabilities.`{action}` links skill `{skill}`, "
+                    f"which is not shipped (have: {sorted(available)})",
+                )
+
+
+def check_mcp_declarations(manifest: dict, where: str, report: Report) -> None:
+    """Mirror the main repo's `[[mcp_servers]]` rules.
+
+    The main repo rejects an inline stdio MCP declaration because a package
+    must not name an executable to run on the user's machine. It also
+    requires exactly one of preset / hosted / inline.
+    """
+    servers = manifest.get("mcp_servers", [])
+    if not isinstance(servers, list):
+        return
+    permissions = {
+        p.get("type") for p in manifest.get("permissions", []) if isinstance(p, dict)
+    }
+    seen_keys: set[str] = set()
+    for decl in servers:
+        if not isinstance(decl, dict):
+            continue
+        forms = [
+            bool(decl.get("preset")),
+            bool(decl.get("hosted")),
+            bool(decl.get("transport")) or bool(decl.get("url")),
+        ]
+        if sum(forms) != 1:
+            report.error(
+                where,
+                f"mcp_servers `{decl.get('name') or decl.get('preset') or decl.get('hosted')}`: "
+                "must declare exactly one of `preset`, `hosted`, or the inline form",
+            )
+            continue
+
+        transport = decl.get("transport")
+        if transport == "stdio":
+            report.error(
+                where,
+                f"mcp_servers `{decl.get('name')}`: inline stdio is not allowed - "
+                "a package must not name an executable to run on the user's machine",
+            )
+
+        url = decl.get("url")
+        if url is not None:
+            if not isinstance(url, str) or not url.startswith(("http://", "https://")):
+                report.error(where, f"mcp_servers inline url `{url}` must be an http(s) URL")
+            elif "Network" not in permissions:
+                report.error(
+                    where,
+                    f"mcp_servers inline url `{url}` is not covered by a `Network` permission",
+                )
+
+        key = decl.get("name") or decl.get("preset") or decl.get("hosted")
+        if key in seen_keys:
+            report.error(where, f"mcp_servers: duplicate server `{key}`")
+        seen_keys.add(key)
+
+
+# ---------------------------------------------------------------------------
+# 4. layout
+# ---------------------------------------------------------------------------
+
 def check_layout(agent_dir: Path, owner: str, name: str, manifest: dict | None,
-                 report: Report, is_template: bool = False) -> None:
+                 hub: dict | None, report: Report, is_template: bool = False) -> None:
     where = f"agents/{owner}/{name}"
 
     if not is_template:
         if not OWNER_RE.match(owner):
-            report.error(where, f"owner segment {owner!r} must be lowercase kebab-case")
+            report.error(where, f"owner directory `{owner}` must be lowercase kebab-case")
         if not NAME_RE.match(name):
-            report.error(where, f"name segment {name!r} must be lowercase kebab-case")
-
-    if not (agent_dir / "README.md").is_file():
-        report.error(where, "README.md is required")
-    if not (agent_dir / "LICENSE").is_file():
-        report.warn(where, "no LICENSE file - the agent inherits the repo MIT license by default")
+            report.error(where, f"agent directory `{name}` must be lowercase kebab-case")
 
     if manifest is not None:
-        declared = manifest.get("name")
-        if declared and declared != name:
-            report.error(where, f"manifest name {declared!r} does not match directory name {name!r}")
-        agent_id = manifest.get("agent_id", "")
-        if "." not in agent_id:
-            report.error(where, f"agent_id {agent_id!r} must be reverse-DNS style (e.g. io.github.you.agent)")
-        elif agent_id.split(".")[0] in {"com", "io", "org", "net", "dev"} and len(agent_id.split(".")) >= 3:
-            pass  # conventional reverse-DNS shape
-        else:
-            report.warn(where, f"agent_id {agent_id!r} does not look like reverse-DNS")
-
-        avatar = manifest.get("avatar")
-        if avatar:
-            avatar_path = agent_dir / avatar
-            if not avatar_path.is_file():
-                report.error(where, f"avatar {avatar!r} declared but missing on disk")
-            elif avatar_path.suffix.lower() not in {".png", ".svg"}:
-                report.error(where, f"avatar {avatar!r} must be .png or .svg")
-
-    skills_dir = agent_dir / "skills"
-    if skills_dir.is_dir():
-        for skill in sorted(skills_dir.iterdir()):
-            if not skill.is_dir():
-                report.error(where, f"skills/{skill.name} must be a directory")
-                continue
-            if not (skill / "SKILL.md").is_file():
-                report.error(where, f"skills/{skill.name}/SKILL.md is missing")
-            if not NAME_RE.match(skill.name):
-                report.warn(where, f"skills/{skill.name} name should be lowercase kebab-case")
-    else:
-        report.warn(where, "no skills/ directory - agents normally ship at least one skill")
-
-
-def check_tier_consistency(agent_dir: Path, manifest: dict, catalog: dict,
-                          report: Report) -> None:
-    """The declared tier must match the declared permissions and skill count.
-
-    Without this, a publisher could advertise `core` (no shell-out) while
-    shipping `Shell` permissions - the label would be meaningless. The rules
-    live in schema/catalog.json so the validator and the UI cannot disagree.
-    """
-    where = f"agents/{agent_dir.parent.name}/{agent_dir.name}"
-    tier = manifest.get("tier")
-    spec = catalog.get("tiers", {}).get(tier)
-    if spec is None:
-        return
-    constraints = spec.get("constraints", {})
-
-    permissions = {p.get("type") for p in manifest.get("permissions", []) if p.get("type")}
-    forbidden = set(constraints.get("forbidden_permissions", []))
-    offending = sorted(permissions & forbidden)
-    if offending:
-        report.error(
-            where,
-            f"tier {tier!r} forbids {forbidden} but the manifest declares {offending}",
-        )
-
-    max_skills = constraints.get("max_skills")
-    if max_skills is not None:
-        skills_dir = agent_dir / "skills"
-        count = 0
-        if skills_dir.is_dir():
-            count = sum(1 for d in skills_dir.iterdir() if d.is_dir() and (d / "SKILL.md").is_file())
-        if count > max_skills:
+        if manifest.get("name") != name:
             report.error(
                 where,
-                f"tier {tier!r} allows at most {max_skills} skills, found {count}",
+                f"manifest.name `{manifest.get('name')}` must equal the directory name `{name}`",
             )
+        if not manifest.get("role"):
+            report.error(where, "manifest.role is required - it is core identity information")
+        if manifest.get("dev"):
+            report.error(
+                where,
+                "manifest.dev must be false - a dev package skips the main repo's "
+                "marketplace and signature checks",
+            )
+        for prefix in ("com.acowork.", "acowork.", "official."):
+            if str(manifest.get("agent_id", "")).startswith(prefix):
+                report.error(
+                    where,
+                    f"agent_id `{manifest.get('agent_id')}` uses the reserved prefix "
+                    f"`{prefix}` - reserved for the platform",
+                )
+
+    if not (agent_dir / "README.md").is_file():
+        report.error(where, "missing README.md")
+    if not (agent_dir / "hub.json").is_file() and not is_template:
+        report.error(
+            where,
+            "missing hub.json - the hub-specific metadata (publisher, license, "
+            "repository) lives there, not in manifest.toml",
+        )
+
+    # skills/<skill>/SKILL.md
+    skills_dir = agent_dir / "skills"
+    if skills_dir.is_dir():
+        for child in sorted(skills_dir.iterdir()):
+            if not child.is_dir():
+                continue
+            if child.name.startswith("_"):
+                continue
+            if not (child / "SKILL.md").is_file():
+                report.error(where, f"skills/{child.name}/ is missing SKILL.md")
+            if not NAME_RE.match(child.name):
+                report.error(where, f"skills/{child.name}/ must be lowercase kebab-case")
+
+    # The main repo's package format: prompts/ carries the system prompt.
+    if not is_template and not (agent_dir / "prompts").is_dir():
+        report.warn(
+            where,
+            "no prompts/ directory - an agent with no system prompt cannot run",
+        )
+
+
+# ---------------------------------------------------------------------------
+# 5. hygiene
+# ---------------------------------------------------------------------------
+
+def check_hub_file(hub: dict, agent_dir: Path, owner: str, where: str, report: Report) -> None:
+    """The publisher id must match the directory it lives in."""
+    publisher = hub.get("publisher", {})
+    pid = publisher.get("id", "") if isinstance(publisher, dict) else ""
+    if not pid:
+        return
+    _, _, handle = pid.partition(":")
+    if handle and handle != owner:
+        report.error(
+            where,
+            f"publisher.id `{pid}` does not match the owner directory `{owner}` - "
+            "a submission may only publish under its own account",
+        )
 
 
 def check_hygiene(agent_dir: Path, where: str, report: Report) -> None:
+    policy = load_json(SCHEMA_DIR / "catalog.json").get("package_policy", {})
+    forbidden = set(policy.get("forbidden_binary_extensions", []))
+    forbidden |= {".agent", ".zip", ".tar", ".gz", ".tgz", ".7z", ".rar"}
+
     for path in agent_dir.rglob("*"):
         if not path.is_file():
             continue
-        rel = path.relative_to(agent_dir)
-        if path.name in {"index.json", "agents.json"}:
-            report.error(where, f"{rel} is a generated artifact and must not be committed")
-        if path.suffix.lower() in FORBIDDEN_SUFFIXES:
-            report.error(where, f"{rel} looks like a binary artifact - commit sources only")
-        if path.name.endswith((".key", ".pem", ".p12", ".pfx")):
-            report.error(where, f"{rel} looks like key material and must not be committed")
-
-
-def check_no_binaries(agent_dir: Path, catalog: dict, report: Report) -> None:
-    """An agent package contains no binaries.
-
-    The capability surface of an agent is exactly prompt + skills + tools +
-    mcp. Any binary capability is reached through an stdio MCP server that
-    lives outside the package. A package that carries an executable would
-    therefore ship an unexpected code-execution surface, and there is no
-    legitimate reason for one.
-    """
-    where = f"agents/{agent_dir.parent.name}/{agent_dir.name}"
-    policy = catalog.get("package_policy", {})
-    forbidden = set(policy.get("forbidden_suffixes", []))
-
-    for path in sorted(agent_dir.rglob("*")):
-        if not path.is_file():
-            continue
-        rel = path.relative_to(agent_dir)
+        rel = path.relative_to(agent_dir).as_posix()
         suffix = path.suffix.lower()
+
         if suffix in forbidden:
             report.error(
                 where,
-                f"{rel} is a binary ({suffix}). Agent packages contain no binaries - "
-                "expose binary capability through a stdio MCP server instead "
-                "(see docs/publishing.md)",
+                f"{rel} has a forbidden extension - an agent package never carries "
+                "a binary; capabilities come from prompt, skills, builtin tools and MCP",
             )
-        elif suffix in {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico"}:
-            # Binary assets are allowed - they are inert images, not code.
-            continue
+        if path.name in ("index.json", "agents.json"):
+            report.error(where, f"{rel} is a generated artifact and must not be committed")
+        if path.name.endswith((".key", ".pem")):
+            report.error(where, f"{rel} looks like signing material and must not be committed")
 
 
-def check_mcp_declarations(manifest: dict, catalog: dict, report: Report) -> None:
-    """MCP servers are referenced by name only.
+# ---------------------------------------------------------------------------
+# driver
+# ---------------------------------------------------------------------------
 
-    A package declares the MCP tools it wants. The server binary and its
-    stdio transport configuration are supplied by the runtime; shipping
-    them inside the package would defeat the "no binaries" rule.
-    """
-    where = "manifest"
-    policy = catalog.get("package_policy", {}).get("mcp_declaration", {})
-    prefix = policy.get("tool_prefix", "mcp_")
-
-    for tool in manifest.get("tools", []):
-        name = tool.get("name", "")
-        if name.startswith(prefix):
-            # MCP tools are opted in by name. Nothing else may be declared
-            # for them - in particular no command/args/env, which would let
-            # a package smuggle in an executable.
-            extra = set(tool) - {"name", "type", "config", "rag"}
-            if extra:
-                report.error(
-                    where,
-                    f"MCP tool {name!r} declares extra keys {sorted(extra)} - "
-                    "MCP servers are referenced by name only",
-                )
-            if tool.get("config"):
-                report.error(
-                    where,
-                    f"MCP tool {name!r} must not carry a config block - "
-                    "the runtime supplies the stdio server configuration",
-                )
-
-
-def validate_agent_dir(agent_dir: Path, schema: dict, catalog: dict, report: Report) -> None:
+def validate_agent_dir(agent_dir: Path, schema: dict, hub_schema: dict,
+                       catalog: dict, report: Report) -> None:
     owner = agent_dir.parent.name
     name = agent_dir.name
-    manifest = load_manifest(agent_dir, report)
-    if manifest is not None:
-        check_manifest_schema(manifest, schema, f"agents/{owner}/{name}", report)
-        for prefix in catalog.get("reserved_agent_id_prefixes", []):
-            if manifest.get("agent_id", "").startswith(prefix):
-                report.error(
-                    f"agents/{owner}/{name}",
-                    f"agent_id {manifest.get('agent_id')!r} uses the reserved prefix {prefix!r} - "
-                    "reserved for the platform, not for community submissions",
-                )
-    if manifest is not None:
-        check_tier_consistency(agent_dir, manifest, catalog, report)
-        check_mcp_declarations(manifest, catalog, report)
-    check_layout(agent_dir, owner, name, manifest, report)
-    check_no_binaries(agent_dir, catalog, report)
-    check_hygiene(agent_dir, f"agents/{owner}/{name}", report)
+    where = f"agents/{owner}/{name}"
 
+    manifest = load_toml(agent_dir / "manifest.toml", where, report)
+    if manifest is not None:
+        check_manifest_schema(manifest, schema, where, report)
+        check_labels(manifest, catalog, where, report)
+        check_capability_graph(manifest, agent_dir, where, report)
+        check_mcp_declarations(manifest, where, report)
 
-def discover_agent_dirs() -> list[Path]:
-    """All agent directories: agents/<owner>/<name>/ (one level of owner)."""
-    if not AGENTS_DIR.is_dir():
-        return []
-    found = []
-    for owner_dir in sorted(AGENTS_DIR.iterdir()):
-        if not owner_dir.is_dir() or owner_dir.name.startswith("_") or owner_dir.name.startswith("."):
-            continue
-        for name_dir in sorted(owner_dir.iterdir()):
-            if name_dir.is_dir() and (name_dir / "manifest.toml").is_file():
-                found.append(name_dir)
-    return found
+    hub = None
+    hub_path = agent_dir / "hub.json"
+    if hub_path.is_file():
+        hub = load_json( hub_path)
+        check_hub_schema(hub, hub_schema, where, report)
+        check_hub_file(hub, agent_dir, owner, where, report)
+
+    check_layout(agent_dir, owner, name, manifest, hub, report)
+    check_hygiene(agent_dir, where, report)
 
 
 def main() -> None:
@@ -339,10 +434,11 @@ def main() -> None:
     args = ap.parse_args()
 
     schema = load_json(SCHEMA_DIR / "manifest.schema.json")
+    hub_schema = load_json(SCHEMA_DIR / "hub.schema.json")
     catalog = load_json(SCHEMA_DIR / "catalog.json")
 
     report = Report()
-    check_catalog_drift(schema, catalog, report)
+    check_catalog_coherence(catalog, report)
 
     if args.paths:
         targets = [Path(p).resolve() for p in args.paths]
@@ -350,12 +446,12 @@ def main() -> None:
         targets = discover_agent_dirs()
 
     for target in targets:
-        validate_agent_dir(target, schema, catalog, report)
+        validate_agent_dir(target, schema, hub_schema, catalog, report)
 
     if args.check_template:
         template = AGENTS_DIR / "_template"
         if template.is_dir():
-            check_layout(template, "_template", "_template", None, report, is_template=True)
+            check_layout(template, "_template", "_template", None, None, report, is_template=True)
 
     for warning in report.warnings:
         print(f"[validate] WARN  {warning}")

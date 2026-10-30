@@ -1,158 +1,154 @@
-# Catalog taxonomy, search and facets
+# Catalog: how the hub files an agent
 
-The retrieval UI needs a stable vocabulary. This document defines it; the
-machine-readable source of truth is [`schema/catalog.json`](../schema/catalog.json),
-and `schema/manifest.schema.json` mirrors the same enums.
-`tools/validate.py` fails if the two drift apart.
+The hub needs two browse axes: a **category** (one per agent, primary
+navigation) and **labels** (many per agent, cross-cutting search and
+filtering).
 
-## Fields
+Neither is declared in a package. Both are derived.
 
-| Field | Kind | Source | Signed? |
-|---|---|---|---|
-| `category` | closed enum | manifest | ✅ via the `manifest.toml` digest |
-| `tier` | closed enum | manifest | ✅ via the `manifest.toml` digest |
-| `tags` | closed vocabulary, ≤ 6 | manifest | ✅ via the `manifest.toml` digest |
-| `skills` | derived | `skills/*/SKILL.md` directory names | ✅ via the per-file digest list |
-| `capabilities` | derived | `manifest.capabilities` | ✅ via the `manifest.toml` digest |
-| `permissions` | derived | `manifest.permissions` | ✅ via the `manifest.toml` digest |
+## Where the data comes from
 
-Every one of them lives inside `manifest.toml` (skills are additionally
-covered file by file). `manifest.toml` is in the signed digest list, so all
-of these fields are inside the signature's coverage without any extra
-signing machinery. A publisher cannot advertise `core` while shipping
-`Shell` permissions without breaking the signature. See
-[`trust-model.md`](trust-model.md) for the details.
+The source of truth is the package's `manifest.toml`, which mirrors the main
+repo's `AgentManifest` (ADR-104). The relevant field is:
+
+```toml
+labels = ["research", "reporting", "summarization"]
+```
+
+`labels` is a main-repo field. ADR-104 states its purpose directly:
+
+> Used for Agent-list filtering, **marketplace attributes** and grouping.
+> **Not** involved in permissions, addressing or lifecycle.
+
+Its rules are enforced by the main repo (`is_valid_label`): lowercase kebab,
+2–32 characters, at most 12, no duplicates.
+
+The main repo has **no `catalog` concept and does not need one**. The
+category is the hub's own grouping, so the mapping lives here, in
+`schema/catalog.json`, and nowhere else. Adding a community agent never
+requires touching the main repo's manifest format.
+
+## The derivation
+
+```
+manifest.toml
+  labels = ["research", "reporting", "summarization"]
+                    │
+                    ▼
+   schema/catalog.json  label_categories
+     "research"    → "research"
+     "reporting"   → "data"
+     "summarization" → (unmapped)
+                    │
+                    ▼
+   category = "research"     (first label that maps wins)
+```
+
+**Order matters.** The first label that maps to a category wins, because
+that is the domain the author led with. The main repo's own examples follow
+this convention — `engineering`, `product`, `project-management`,
+`quality`, `documents`, `architecture` are all the leading label of their
+agent.
+
+Labels that map to nothing contribute nothing. An agent whose labels all
+miss the map is filed under `other`.
+
+### Why the first match, and not a vote
+
+A vote (most common mapping wins) sounds fairer and behaves worse: with two
+labels mapping to different categories the result depends on how many
+*other* agents happen to use each label, so adding an unrelated agent could
+recategorise an existing one. First-match is deterministic and explainable —
+the hub can always answer "why is this agent under Research?" with "its first
+label is `research`".
+
+### Why not derive the category from `role`
+
+The main repo's platform pipeline derives a category from `role`
+(`CATEGORY_BY_ROLE` in `dev/common/sync-agent-hub.py`). That works for the
+seven platform agents, whose roles are job titles that happen to be
+enumerable: "Product Manager", "Project Manager", "Software Architect".
+
+It does not scale to a community registry: `role` is a free-form display
+string ("Senior Software Engineer" vs "Staff Engineer" vs "Code Reviewer"
+all mean roughly the same thing), and a community author may not think of
+their role as a job title at all. `labels` is the field ADR-104 designed for
+exactly this job, and it is already validated by the main repo.
+
+`role` is still **required** for community agents — it is core identity
+information and the site shows it on every card. It just is not the
+category key.
 
 ## Categories
 
-`category` is the primary navigation axis. One value per agent.
+`category` is the primary navigation axis. The set is closed and lives in
+`schema/catalog.json`.
 
 | Key | Label | Covers |
 |---|---|---|
-| `engineering` | Engineering | Designing, building or reviewing software and infrastructure |
+| `engineering` | Engineering | Builds, reviews or debugs software and infrastructure |
 | `product` | Product | Strategy, discovery, roadmaps, PRDs, launch planning |
-| `project` | Project | Delivery planning, coordination, estimation, progress tracking |
+| `project` | Project | Delivery planning, coordination, estimation, tracking |
 | `quality` | Quality | Testing, acceptance, review, quality assurance |
 | `knowledge` | Knowledge | Documents, notes, wikis, information architecture, retrieval |
 | `research` | Research | Investigation, literature review, competitive and market analysis |
 | `data` | Data | Data analysis, transformation, pipelines, reporting |
 | `writing` | Writing | Drafting, editing, translation, long-form content |
 | `devops` | DevOps | CI/CD, deployment, monitoring, incident response |
-| `design` | Design | Design systems, visual assets, design review support |
+| `design` | Design | Design systems, visual assets, design review |
 | `support` | Support | Customer support, triage, service operations |
-| `education` | Education | Teaching, tutoring, curriculum work |
+| `education` | Education | Teaching, tutoring, curriculum |
 | `productivity` | Productivity | Personal and team workflow automation |
-| `other` | Other | Anything that does not fit the above |
+| `other` | Other | Anything that maps to no category above |
 
-Rules:
+`other` is always present, so the site never has to handle "no category".
 
-- Exactly one category. An agent that spans two domains picks the one that
-  matches its **primary job**, and uses `tags` for the second dimension.
-- Unknown categories are rejected at build time. The index never guesses.
-- `other` is a last resort; a maintainer may ask you to pick a real one.
+## Labels
 
-## Tiers
+`labels` are the author's own words, and they are **not** a closed
+vocabulary. The main repo accepts any well-formed kebab slug, and so does
+the hub.
 
-`tier` is a **capability** tier: how much the agent can do, derived from its
-declared permissions and skill count. It is not a trust level and not an
-endorsement.
+The hub ships a `label_categories` map that covers the labels the main
+repo's own examples use, plus the obvious neighbours. It is a starting
+point, not a gate: a label that is not in the map still works — it simply
+does not contribute a category, and the agent falls back to `other`.
 
-| Tier | Constraint |
-|---|---|
-| `core` | ≤ 3 skills; no `Shell`, no `Sandbox` |
-| `extended` | ≤ 10 skills; no `Shell`, no `Sandbox`; may write inside its workspace |
-| `advanced` | no skill limit; may declare `Shell` / `Sandbox` |
+When a community agent uses a label the map does not know, the fix is one
+line in `schema/catalog.json` — either map the label, or leave it alone if
+it is not a category-bearing term.
 
-`advanced` requires maintainer review. The constraint table is generated from
-`schema/catalog.json` so the UI and the validator cannot disagree.
+## Search and facet rules
 
-## Tags
+The site merges the platform index and the community index and searches the
+union. The rules:
 
-`tags` are the secondary facet. Values come from a controlled vocabulary — one
-tag, one meaning, so facet counts stay meaningful.
-
-Current vocabulary: `automation`, `code-review`, `code-generation`,
-`compliance`, `data-analysis`, `data-pipeline`, `debugging`, `documentation`,
-`education`, `evaluation`, `git`, `incident-response`, `integration`,
-`knowledge-base`, `language`, `llm`, `migration`, `monitoring`, `notes`,
-`planning`, `release`, `reporting`, `research`, `retrieval`, `security`,
-`summarization`, `testing`, `translation`, `workflow`.
-
-Rules:
-
-- 0–6 tags, unique, lowercase.
-- If a needed tag is missing, propose it in a PR that adds it to
-  `schema/catalog.json` **and** `schema/manifest.schema.json`. The validator
-  keeps the two in sync — a PR that updates only one is rejected.
-- Tags are never a search-ranking hack. If the description already says it,
-  a tag that nobody filters on is noise.
-
-## Skills
-
-`skills` is derived, not declared: it is the list of directories under
-`skills/` that contain a `SKILL.md`. The index builder and the signer both
-compute it from the filesystem, so it cannot drift from the package contents.
-
-A skill is a repeatable workflow: one directory, one `SKILL.md` with YAML
-front matter (`name`, `description`) and a procedure. See
-`agents/nicholas/research-agent/skills/research-synthesis/SKILL.md` for the
-shape.
-
-## Search rules
-
-The website's search is client-side over `index.json`. The rules the client
-must implement, so that behaviour is reproducible:
-
-1. **Tokenisation** — the query is lowercased and split on whitespace. No
-   stemming, no phrase search, no operators.
-2. **Matching** — a token matches if it is a substring of the haystack.
-3. **AND semantics** — an entry matches the query only if **every** token
-   matches. This is what users expect from a multi-word search.
-4. **Haystack** — in this order:
-   `agent_id`, `display_name`, `name`, `role`, `description`, `author`,
-   `category_label`, `category`, `tier`, then every `capability.key`,
-   `capability.description`, `skill` name, and `permission`.
-   Publisher display name is included but ranked low (see below).
-5. **Field priority for ranking** — when several entries match, sort by:
-   1. exact match on `display_name` or `agent_id`,
-   2. prefix match on `display_name`,
-   3. match on `role` / `category_label` / `skill`,
-   4. match in `description` or `capabilities`,
-   5. match on `publisher.display_name` only.
-
-   Publisher-name matches rank last deliberately: a publisher search must not
-   outrank a functional match.
-
-## Facet rules
-
-The index carries precomputed facet counts so the client does not have to
-recompute them:
-
-```json
-"facets": {
-  "category": [{"key": "engineering", "label": "Engineering", "count": 4}, …],
-  "tier":     [{"key": "core", "label": "Core", "count": 5}, …],
-  "tag":      [{"key": "research", "count": 2}, …]
-}
-```
-
-- `category` and `tier` facets list **all** taxonomy values, including those
-  with `count: 0`, so the filter UI is stable as the catalogue grows.
-- `tag` lists only tags that at least one agent carries.
-- Counts are computed over the **full** catalogue, not over the current
-  filtered subset. A facet count that changes when you click another facet is
-  confusing; the client shows the total, and (optionally) the count within
-  the current filter as a secondary number.
-- Combining filters is a logical AND: one category AND one tier AND any
-  number of tags AND the text query.
+- **Text search** matches against `agent_id`, `name`, `display_name`,
+  `role`, `description`, `author`, `category_label`, every capability key
+  and description, every skill name, and every permission name.
+- **Multi-word queries are AND.** Every whitespace-separated token must
+  appear somewhere in the searchable text.
+- **Category filter** is single-select and exact: an agent is in exactly one
+  category, so a category filter needs no "all of" semantics.
+- **Label filter** is multi-select and OR within itself, AND with the
+  category filter: "category=engineering AND (label=testing OR label=security)".
+- **Facet counts** are precomputed in `index.json` under `facets`, so the
+  site renders counts without walking the list.
 
 ## Adding to the taxonomy
 
-1. Edit `schema/catalog.json` (categories, tiers or tags).
-2. Edit `schema/manifest.schema.json` to mirror the same enum.
-3. Run `python tools/validate.py` — it fails if the two disagree.
-4. Open a PR explaining why the new value is needed and how it differs from
-   the existing ones.
+- **A new label** that should map to an existing category: add it to
+  `label_categories` in `schema/catalog.json`.
+- **A new category**: add it to `categories` in `schema/catalog.json` and
+  map at least one label to it. A category with no label mapping can never
+  be reached, so the validator flags a mapping that points at an unknown
+  category.
 
-A new category needs a maintainer decision (it changes the primary
-navigation); a new tag is usually accepted if it is clearly distinct.
+Both are hub-local changes. The main repo is not involved.
+
+## What the signature covers
+
+The category is derived from `labels`, and `labels` lives in
+`manifest.toml`, which is inside the package's signed digest list. So the
+category a consumer sees is traceable to bytes the channel signed. It is
+still **not** a trust signal — see [trust-model.md](trust-model.md).

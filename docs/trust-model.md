@@ -46,17 +46,19 @@ package named `com.acowork.sybil` and the site will treat it as official.
 This registry does not introduce an equivalent mechanism, and it does not
 add a trust badge of any kind:
 
-- `tier` here is a **capability level** (`core` / `extended` / `advanced`),
-  computed from the agent's own declarations. It is not a trust ranking and
-  is never rendered as one. The values deliberately do not overlap with the
-  main repo's `official` / `community` vocabulary.
-- `publisher.affiliation` is **self-declared metadata**. It is displayed as
-  such and is never a trust input.
+- There is **no `tier` field at all**. The earlier design of this repo had
+  one, and it was wrong twice over: it was invented rather than derived from
+  a data model, and a "tier" is exactly the kind of label that reads like a
+  badge. Capability information is already in `permissions`, `tools` and
+  `capabilities`, where the main repo puts it.
+- `publisher` in `hub.json` is a **provenance record** — who published it,
+  whose account it is, who to contact and who to revoke. It is not
+  verified, and it is never rendered as an official or verified badge.
 - The reserved-prefix list in `schema/catalog.json` (`com.acowork.`,
   `acowork.`, `official.`) is **rejected at validation time**, so a
   community agent cannot impersonate an official id in the first place.
 - The only thing the signature establishes is the two facts above. There is
-  no "verified publisher" claim, no endorsement tier, no quality score.
+  no "verified publisher" claim, no endorsement level, no quality score.
 
 ## Why the signature payload is not versioned
 
@@ -91,9 +93,7 @@ Because extra signed attributes are not protected, capability metadata does
 not go in the signed attributes. It goes in `manifest.toml`:
 
 ```toml
-category = "research"
-tier     = "core"
-tags     = ["research", "summarization"]
+labels    = ["research", "reporting", "summarization"]
 ```
 
 `manifest.toml` is inside the package and therefore inside the digest list,
@@ -101,6 +101,9 @@ so the signature covers those fields **through the digest list** — with no
 format change and no main repo modification. The protection is identical to
 what the v2 design was reaching for; the mechanism is simply one that
 already works.
+
+The browse category the hub derives from those labels is therefore
+traceable to signed bytes as well.
 
 The same reasoning applies to `skills`: they are the `skills/<name>/SKILL.md`
 directories, also inside the digest list.

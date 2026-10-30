@@ -1,30 +1,28 @@
 # Agent manifest — copy this directory to agents/<owner>/<name>/ and edit.
-# Full contract: schema/manifest.schema.json
+#
+# This file is a faithful mirror of the main repo's AgentManifest
+# (core/acowork-core/src/manifest.rs). Every field below exists in the main
+# repo with the same name and type. Do NOT add hub-only fields here: the
+# main repo re-serialises the parsed manifest and would drop them. Put
+# hub-specific metadata in hub.json instead.
 
 agent_id = "io.github.your-handle.your-agent"
 version = "0.1.0"
 name = "your-agent"
 display_name = "Your Agent"
-role = "One line describing what this agent does"
-description = "A longer paragraph: what the agent does, who it is for, and when to reach for it. Minimum 20 characters."
+role = "Your Role Title"
+description = "A longer paragraph: what the agent does, who it is for, and when to reach for it."
 author = "Your Name"
 runtime_version = "0.1.0"
-avatar = "avatar.svg"
-license = "MIT"
-repository = "https://github.com/your-handle/your-agent"
+avatar = "assets/avatar.svg"
 
-# Catalog fields. category and tier are constrained by schema/catalog.json;
-# tags come from the controlled vocabulary in the same file.
-category = "productivity"
-tier = "core"
-tags = ["automation"]
+# Retrieval / discovery tags (ADR-104). Lowercase kebab, 2-32 chars, max 12.
+# The hub maps these onto browse categories via schema/catalog.json - a
+# manifest never declares a category itself.
+labels = ["automation"]
 
-[publisher]
-# Stable handle. Signed into the package, but it is self-asserted metadata:
-# it is never rendered as an official or verified badge.
-id = "github:your-handle"
-display_name = "Your Name"
-affiliation = "community"
+# System Agent identity fields this agent depends on.
+identity_deps = ["language", "timezone"]
 
 [[permissions]]
 type = "FilesystemRead"
@@ -32,11 +30,34 @@ type = "FilesystemRead"
 [[permissions]]
 type = "FilesystemWrite"
 
+# Builtin tool opt-ins (ADR-029). Only name tools that actually exist in
+# the runtime; a name that does not resolve is silently dropped.
 [[tools]]
 name = "file_read"
 
 [[tools]]
-name = "file_write"
+name = "doc_reader"
 
+# A capability is an outward contract other agents address through an
+# intent. A skill is an internal workflow. `skills` links the two; every
+# name must be a skill directory that really ships in this package.
 [capabilities.example_workflow]
 description = "What this capability lets the agent do, in one sentence."
+skills = ["example"]
+
+[llm]
+temperature = 0.3
+
+[memory]
+enabled = true
+retention_days = 90
+
+[resources]
+max_memory_mb = 512
+idle_timeout_secs = 1800
+
+[sandbox]
+enabled = false
+
+[skills]
+progressive = true

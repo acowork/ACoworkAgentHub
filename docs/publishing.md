@@ -89,12 +89,14 @@ publishes `index.json` for community agents. The website merges them:
 const all = [...platformAgents.agents, ...communityAgents.agents];
 ```
 
-The only field that needs care is `tier`: this repo's `tier` means capability
-level (`core` / `extended` / `advanced`), while the main repo uses the word
-`tier` for the HTTP permission tiers (`Agent` / `Attribution` / `Admin` /
-`Claim`) and for signer identities (`Developer` / `Platform` / `CaIssued`).
-**Different axes.** The website must not present them under one label. See
-the open questions below.
+The field that needs care is `category`. Both indexes carry it, but the two
+derive it differently: the platform pipeline derives it from `role`, this
+repo derives it from the package's `labels` through the hub's
+`label_categories` map (see [`catalog.md`](catalog.md)). Same field name,
+same meaning — "which browse bucket" — so the site can merge and filter the
+union without special-casing.
+
+Neither index has a `tier` field, and this repo does not add one.
 
 ## Consumption contract for `index.json`
 
@@ -136,15 +138,12 @@ this round so the pipeline could be built; they are expected to be revisited.
    the registry accept copyleft or source-available agent licenses, or
    restrict agents to permissive licenses only? Current policy accepts them
    with a declaration.
-2. **The `tier` field collision** **[assumed: keep `tier` as capability
-   level; disambiguate in prose]** — the word `tier` already means two
-   unrelated things in the main repo: the HTTP permission tiers in
-   `core/acowork-gateway/src/http/permission.rs` (`Agent` / `Attribution` /
-   `Admin` / `Claim`) and the signer identities in `acowork-sign`
-   (`Developer` / `Platform` / `CaIssued`). Here `tier` means capability
-   level (`core` / `extended` / `advanced`). The value sets are disjoint and
-   the schema says so, but if the website ever surfaces the main repo's
-   permission tiers it must not label them `tier` next to these.
+2. **The `category` derivation differs between the two indexes** **[assumed:
+   both are "the browse bucket", so the site can merge them]** — the platform
+   derives it from `role`, this repo from `labels`. If the site ever needs to
+   show *why* an agent is in a category, the two answers read differently.
+   The alternative would be to derive the platform's category from its
+   labels too, which is a main-repo change.
 3. **Deprecated flag** **[assumed: `deprecated = true` in the manifest]** —
    needs a schema addition and index handling.
 4. **Registry key rotation** **[assumed: supported via `status: revoked`]** —

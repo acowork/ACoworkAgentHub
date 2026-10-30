@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://acowork.dev/schemas/agent.schema.json",
-  "title": "ACoworkAgents index entry",
-  "description": "One entry of the generated index.json. The file names and field names are intentionally aligned with the main repo's dev/common/sync-agent-hub.py output so that the website pipeline can consume both without special-casing.",
+  "title": "ACoworkAgentHub index entry",
+  "description": "One entry of the generated index.json. The field names are intentionally aligned with the main repo's dev/common/sync-agent-hub.py output so the website pipeline can consume both without special-casing. Differences from the platform index: `category` is DERIVED from the package's labels through the hub's label->category map (the platform derives it from `role`), and the hub adds `labels`, `license`, `repository` and `deprecated`. The platform has no `tier` field and neither does this.",
   "type": "object",
   "required": [
     "agent_id",
@@ -14,10 +14,11 @@
     "author",
     "category",
     "category_label",
-    "tier",
-    "tags",
+    "labels",
     "skills",
     "publisher",
+    "license",
+    "repository",
     "source",
     "package"
   ],
@@ -48,16 +49,15 @@
       "type": "string"
     },
     "category": {
-      "type": "string"
+      "type": "string",
+      "description": "Derived by the hub from the package's labels via the label->category map in schema/catalog.json. Never declared by the author."
     },
     "category_label": {
       "type": "string"
     },
-    "tier": {
-      "type": "string"
-    },
-    "tags": {
+    "labels": {
       "type": "array",
+      "description": "The package's own retrieval tags (ADR-104). The secondary, cross-cutting facet.",
       "items": {
         "type": "string"
       }
@@ -83,6 +83,13 @@
           },
           "description": {
             "type": "string"
+          },
+          "skills": {
+            "type": "array",
+            "description": "The skills that implement this capability (ADR-104).",
+            "items": {
+              "type": "string"
+            }
           }
         }
       }
@@ -101,10 +108,10 @@
     },
     "publisher": {
       "type": "object",
+      "description": "Who published the agent to the hub. A provenance record, not a trust or endorsement claim — the hub renders no official badge.",
       "required": [
         "id",
-        "display_name",
-        "affiliation"
+        "display_name"
       ],
       "additionalProperties": false,
       "properties": {
@@ -114,14 +121,36 @@
         "display_name": {
           "type": "string"
         },
-        "affiliation": {
-          "type": "string"
-        },
-        "contact": {
-          "type": "string"
-        },
         "homepage": {
           "type": "string"
+        }
+      }
+    },
+    "license": {
+      "type": "string",
+      "description": "SPDX expression for the agent's own content, from hub.json."
+    },
+    "repository": {
+      "type": "string",
+      "description": "Public source repository, from hub.json."
+    },
+    "homepage": {
+      "type": "string",
+      "description": "Optional project homepage, from hub.json."
+    },
+    "deprecated": {
+      "type": "object",
+      "description": "Present when the agent is no longer recommended. The package stays published and verifiable; the site surfaces the notice.",
+      "required": [
+        "reason"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "successor": {
+          "type": ["string", "null"]
         }
       }
     },
@@ -192,7 +221,7 @@
         },
         "catalog_digest_covered": {
           "type": "boolean",
-          "description": "Always true for signed packages: category/tier/tags live in manifest.toml, which is inside the digest list. There is no case where they are unsigned."
+          "description": "Always true for signed packages: the labels the category is derived from live in manifest.toml, which is inside the digest list."
         }
       }
     },
