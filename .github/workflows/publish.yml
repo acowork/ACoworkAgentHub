@@ -47,7 +47,15 @@ jobs:
       # id are repository secrets; the project name is a constant.
       CLOUDFLARE_PROJECT_NAME: acowork-agent-hub
     steps:
+      # fetch-depth: 0 is not decoration. A package is stamped with the last commit
+      # that touched that agent's directory, so an unrelated commit elsewhere does not
+      # move its bytes - and a rebuild of unchanged content reproduces it exactly. The
+      # default (depth 1) collapses every directory's history into one commit, which
+      # would give CI a different stamp than a full local checkout: same source,
+      # different bytes.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:

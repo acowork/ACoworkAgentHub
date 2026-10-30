@@ -65,6 +65,7 @@ SCHEMA_VERSION = 1
 #: registry must be rebuilt even if no agent changed.
 BUILDER_FILES = (
     "tools/pack.py",
+    "tools/buildtime.py",
     "tools/signing.py",
     "tools/build-index.py",
     "schema/agent.schema.json",

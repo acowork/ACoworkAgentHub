@@ -29,7 +29,6 @@ import hashlib
 import json
 import sys
 import zipfile
-from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
 
@@ -41,6 +40,7 @@ except ModuleNotFoundError:
     sys.exit("[pack] FATAL: needs Python 3.11+ (tomllib). Exit 2")
 
 import signing  # noqa: E402
+import buildtime  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -90,7 +90,8 @@ def read_skills(agent_dir: Path) -> list[str]:
     )
 
 
-def pack_agent(agent_dir: Path, out_dir: Path, key_path: Path | None) -> dict:
+def pack_agent(agent_dir: Path, out_dir: Path, key_path: Path | None,
+             build_epoch: int | None = None) -> dict:
     manifest_path = agent_dir / "manifest.toml"
     if not manifest_path.is_file():
         fail(f"{agent_dir} has no manifest.toml")
@@ -109,15 +110,36 @@ def pack_agent(agent_dir: Path, out_dir: Path, key_path: Path | None) -> dict:
         fail(f"{agent_dir} contains no files to pack")
 
     digests = compute_digests(files)
-    attrs = signing.build_attrs(
-        signing_time=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    )
+
+    # One clock for the whole package: the zip entries and the signed attribute
+    # are stamped from the same instant, so nothing in the output depends on
+    # when the build happened to run. See tools/buildtime.py.
+    epoch, stamp_origin = buildtime.resolve_epoch(agent_dir, override=build_epoch)
+    attrs = signing.build_attrs(signing_time=buildtime.utc_stamp(epoch))
 
     # 1. build the clean zip
+    #
+    # Every field a zip entry carries is written out explicitly. Leaving any of
+    # them to `writestr()`'s defaults would make the bytes depend on the
+    # interpreter version (it fills in `external_attr` and the DOS date from
+    # `time.localtime()`), and the timestamp would depend on the machine's
+    # timezone.
+    #
+    # Stored, not deflated: deflate output depends on the zlib that the
+    # interpreter links, which differs between a workstation and a CI image.
+    # Measured cost across the whole registry is 1.39x (525 KB -> 732 KB for
+    # eight agents), which buys "any machine produces the same bytes".
     buffer = BytesIO()
-    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+    date_time = buildtime.zip_date(epoch)
+    with zipfile.ZipFile(buffer, "w") as zf:
         for name, path in files:
-            zf.writestr(name, path.read_bytes())
+            info = zipfile.ZipInfo(name, date_time=date_time)
+            info.compress_type = zipfile.ZIP_STORED
+            info.create_system = 0        # MS-DOS/Windows field, fixed on purpose
+            info.create_version = 20
+            info.extract_version = 20
+            info.external_attr = 0o644 << 16   # regular file, no umask leakage
+            zf.writestr(info, path.read_bytes())
     clean_zip = buffer.getvalue()
 
     # 2. sign (or leave unsigned)
@@ -165,6 +187,8 @@ def pack_agent(agent_dir: Path, out_dir: Path, key_path: Path | None) -> dict:
         "signed": key_path is not None,
         "signer_fingerprint": fingerprint,
         "signing_time": attrs["signing_time"],
+        "build_epoch": epoch,
+        "stamp_origin": stamp_origin,
         "file_count": len(digests),
     }
 
@@ -251,6 +275,9 @@ def main() -> int:
     ap.add_argument("--out", default="build", help="output directory for .agent packages")
     ap.add_argument("--key", help="Ed25519 seed file (32 raw bytes) used to sign")
     ap.add_argument("--verify", help="verify an existing .agent package instead of packing")
+    ap.add_argument("--build-epoch", type=int,
+                    help="override the build timestamp (seconds since epoch); "
+                         "default: SOURCE_DATE_EPOCH, else the last commit touching the dir")
     args = ap.parse_args()
 
     if args.verify:
@@ -269,7 +296,8 @@ def main() -> int:
     if key_path and not key_path.is_file():
         fail(f"key file {key_path} not found")
 
-    result = pack_agent(agent_dir, Path(args.out).resolve(), key_path)
+    result = pack_agent(agent_dir, Path(args.out).resolve(), key_path,
+                        build_epoch=args.build_epoch)
     print(
         f"[pack] {result['agent_id']} v{result['version']} -> "
         f"{result['package'].name} ({result['size_bytes']} bytes, sha256 {result['sha256'][:16]}...) "

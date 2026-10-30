@@ -21,6 +21,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import subprocess
 import sys
@@ -44,7 +45,17 @@ def check(cond: bool, label: str, detail: str = "") -> bool:
     return cond
 
 
-def run_tool(root: Path, tool: str, *args: str) -> subprocess.CompletedProcess:
+def run_tool(root: Path, tool: str, *args: str,
+             env: dict | None = None) -> subprocess.CompletedProcess:
+    """Run a tools/ script inside the fixture.
+
+    `env` is layered on top of the inherited environment: the determinism cases
+    need to pin SOURCE_DATE_EPOCH without mutating the parent process.
+    """
+    run_env = None
+    if env:
+        run_env = dict(os.environ)
+        run_env.update(env)
     return subprocess.run(
         [sys.executable, str(root / "tools" / tool), *args],
         capture_output=True,
@@ -52,6 +63,7 @@ def run_tool(root: Path, tool: str, *args: str) -> subprocess.CompletedProcess:
         encoding="utf-8",
         errors="replace",
         cwd=str(root),
+        env=run_env,
     )
 
 
@@ -266,6 +278,61 @@ def main() -> int:
           "CRLF vs LF in builder code does not force a republish",
           (r.stdout + r.stderr)[-300:])
     builder.write_bytes(pack_original)
+
+    # ---- 9. the same source builds the same bytes ----------------------
+    # The fixture has no .git, so the stamp comes from SOURCE_DATE_EPOCH (or the
+    # 1980 fallback). Either way the point is the property, not the source:
+    # nothing in a package may depend on when the build ran.
+    print("\n9) deterministic package bytes")
+    stamp_mod = _load_tool("buildtime")
+    epoch_a, epoch_b = 1_700_000_000, 1_700_000_001
+    det: dict[str, dict[str, bytes]] = {}
+    for label, epoch in (("a", epoch_a), ("b", epoch_a), ("c", epoch_b)):
+        out_dir = root / ".selftest" / f"det{label}"
+        r = run_tool(root, "ci-pack-all.py", "--out", str(out_dir), "--key", str(key_a),
+                     env={"SOURCE_DATE_EPOCH": str(epoch)})
+        check(r.returncode == 0, f"determinism build {label} succeeds", (r.stdout + r.stderr)[-300:])
+        det[label] = {f.name: f.read_bytes() for f in sorted(out_dir.glob("*.agent"))}
+    check(len(det["a"]) == total, f"determinism build produced all {total} packages",
+          f"got {len(det['a'])}")
+    check(det["a"] == det["b"], "same epoch twice -> byte-identical packages",
+          f"{sum(1 for k in det['a'] if det['a'][k] != det['b'].get(k))} of {total} differ")
+    check(det["a"] != det["c"], "a different epoch changes the bytes (the stamp is really in there)")
+
+    import zipfile as _zip
+    from io import BytesIO as _BytesIO
+
+    sample = sorted(det["a"])[0]
+    entries = _zip.ZipFile(_BytesIO(det["a"][sample])).infolist()
+    want = stamp_mod.zip_date(epoch_a)
+    check(all(e.date_time == want for e in entries),
+          "entries carry the UTC build stamp, not the local clock",
+          f"want {want}, got {sorted({e.date_time for e in entries})[:2]}")
+    check(all(e.compress_type == _zip.ZIP_STORED for e in entries),
+          "stored, so the bytes cannot depend on the zlib build")
+    check(all(e.external_attr == 0o644 << 16 and e.create_system == 0 for e in entries),
+          "entry attributes are explicit, not interpreter defaults")
+
+    pack_mod = _load_tool("pack")
+    verified = pack_mod.verify_package(root / ".selftest" / "detA" / sample)
+    check(verified.get("signing_time") == stamp_mod.utc_stamp(epoch_a),
+          "the signed signing_time equals the build stamp",
+          f"got {verified.get('signing_time')!r} want {stamp_mod.utc_stamp(epoch_a)!r}")
+    check(verified.get("ok", True) is True, "the deterministic package still verifies",
+          str(verified)[:200])
+
+    # ---- 10. the index is reproducible too -------------------------------
+    print("\n10) deterministic index")
+    idx = {}
+    for label, epoch in (("a", epoch_a), ("b", epoch_a), ("c", epoch_b)):
+        target = root / ".selftest" / f"index{label}.json"
+        r = run_tool(root, "build-index.py", "--packages", str(root / ".selftest" / "detA"),
+                     "--out", str(target), env={"SOURCE_DATE_EPOCH": str(epoch)})
+        check(r.returncode == 0, f"index build {label} succeeds", (r.stdout + r.stderr)[-300:])
+        idx[label] = target.read_bytes() if target.exists() else b""
+    check(bool(idx["a"]) and idx["a"] == idx["b"],
+          "same epoch -> identical index.json (generated_at is not wall clock)")
+    check(idx["a"] != idx["c"], "different epoch -> different index.json")
 
     if not args.keep:
         shutil.rmtree(work, ignore_errors=True)

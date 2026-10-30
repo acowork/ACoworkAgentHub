@@ -39,7 +39,6 @@ import hashlib
 import json
 import subprocess
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -49,7 +48,13 @@ try:
 except ModuleNotFoundError:
     sys.exit("[build-index] FATAL: needs Python 3.11+ (tomllib). Exit 2")
 
+import buildtime  # noqa: E402
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+#: The index is stamped with the commit that built it, not with the wall clock,
+#: so two builds of the same commit produce the same bytes.
+BUILD_EPOCH, BUILD_EPOCH_ORIGIN = buildtime.resolve_epoch(REPO_ROOT)
 AGENTS_DIR = REPO_ROOT / "agents"
 CATALOG_PATH = REPO_ROOT / "schema" / "catalog.json"
 
@@ -333,7 +338,7 @@ def main() -> None:
 
     doc = {
         "schema_version": SCHEMA_VERSION,
-        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "generated_at": buildtime.utc_stamp(BUILD_EPOCH),
         "source": {
             "repository": args.repo or "https://github.com/acowork/ACoworkAgentHub",
             "commit": git_ref(REPO_ROOT),
