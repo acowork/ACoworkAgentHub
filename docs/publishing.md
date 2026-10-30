@@ -16,11 +16,12 @@ that reaches a user.
        │                        │  maintainer approval          │
        │  merged into main      │                              │
        │                        │  publish.yml                 │
-       │                        │    pack every agent           │
-       │                        │    sign with the channel key  │
-       │                        │    build index.json           │
-       │                        │    build the site             │
-       │                        │    render it in a browser     │
+       │                        │    content gate (digest)     │
+       │                        │    pack only what changed    │
+       │                        │    sign with the channel key │
+       │                        │    build index.json          │
+       │                        │    build the site (shards)   │
+       │                        │    render it in a browser    │
        │                        │      │                       │
        │                        │      ├─▶ GitHub Release       │
        │                        │      │   (index.json,          │
@@ -39,14 +40,54 @@ that reaches a user.
 Everything binary is produced by `publish.yml`. The repository never contains
 a package, a checksum, a signature or an index — not on a branch either.
 
+## The content gate
+
+**A push that does not change the published bytes does not publish anything.**
+This is a rule, not an optimisation. Re-signing identical content on every push
+produces new artifacts for no reason: it makes the release history meaningless
+(a "what changed since last week" question with no answer), it invalidates every
+cached download URL, and it hides real changes in noise.
+
+Published bytes are a function of three inputs, so `tools/registry-digest.py`
+hashes all three:
+
+| Input | Why it moves the published bytes |
+|---|---|
+| the source tree of each agent | the obvious one — prompts, skills, manifest, avatar |
+| the builder (`pack.py`, `signing.py`, `build-index.py`, the schemas) | a packer fix changes every package while changing no agent |
+| the signing key | the same content signed by a different key is a different artifact *and* a different trust claim |
+
+Consequences the pipeline relies on:
+
+- **revert does not republish.** Editing a prompt and reverting it yields the
+  same digest, so nothing is signed again.
+- **a builder-only change republishes without re-packing.** The digest says
+  "publish", the per-agent list says "no agent changed", so the published
+  packages are reused and only the index and site are rebuilt.
+- **reuse is proven by content, not by bookkeeping.** `ci-pack-all.py` compares
+  the signed section digests inside a published package against the current
+  source tree before reusing it. A stale or hand-edited changed-list cannot
+  publish an old package under a new version.
+
+Both halves are tested on every pull request by `validate.yml`, because a gate
+only exercised at release time is a gate that fails silently — either always
+republishing, or never.
+
 ## The two outputs of one build
 
 `publish.yml` produces two things from **one** run:
 
 | Output | Where it goes | What it is |
 |---|---|---|
-| GitHub Release | `github.com/acowork/ACoworkAgentHub/releases` | the machine-readable distribution point: `index.json`, every `.agent` package, `SHA256SUMS` |
-| the site | `hub.acowork.ai` (Cloudflare Pages) | the same snapshot, rendered as a page |
+| the site | `hub.acowork.ai` (Cloudflare Pages) | the page, the shards, and every `.agent` package under `downloads/` |
+| the rolling Release | `github.com/acowork/ACoworkAgentHub/releases/tag/latest` | the same snapshot for machine consumers: `index.json`, `*.agent`, `SHA256SUMS`, `registry.digest.json` |
+
+There is **one** release, `latest`, updated in place. Earlier this workflow
+created a dated release per publish (`v2026-10-30-<sha>`), each carrying every
+package: with N agents and M publishes that is N×M×2 assets accumulating
+forever, and a release page listing thousands of files. Assets that a build no
+longer produces are deleted, so the release always mirrors the current
+snapshot rather than its whole history.
 
 They come from the same `dist/`, so the page, the index and the downloadable
 packages are always the same snapshot. A user who reads a description on the
@@ -72,29 +113,74 @@ The site is deliberately plain: one HTML file, one CSS file, one JS file, no
 build step, no npm dependency. It is a directory of files that any static
 host can serve.
 
+## How the page loads its data
+
+**The first paint is sized by the page, never by the registry.** `index.html`
+embeds no copy of the data, and the browser does not fetch the full index.
+`tools/build-site.py` writes three tiers instead:
+
+| File | Size | When it is fetched |
+|---|---|---|
+| `data/meta.json` | ~1 KiB | every page load, uncached — it declares the build id |
+| `data/pages/p###.json` | 48 cards each, ~10 KiB | page 0 on first paint, later pages as the user scrolls |
+| `data/details/<agent_id>.json` | one full entry | when that card is opened |
+
+The split is by **field weight against the access pattern**, not by category.
+A card carries everything needed to draw it *and to search it* (identity,
+description, labels, category, skill and capability **names**, permissions,
+size, channel status) — about 214 B gzipped. The heavy fields (capability
+descriptions, package sha256, signer fingerprint, source links) live only in
+the detail file.
+
+Category sharding would not work here: search is client-side, so a query has
+to see every record. Splitting by category would force fetching every shard
+anyway, while making the common case (browse page 0) harder.
+
+Two rules follow from this and are enforced by `tools/check-site.py`:
+
+- searching may load every shard (it needs every card), but the **DOM** is
+  windowed at 96 cards, so a query matching thousands of agents cannot freeze
+  the tab;
+- opening one agent's detail must fetch that agent's file and nothing else.
+
+The shipped registry is one shard, so the assertions above are run against a
+**synthetic 130-agent registry** built by the same `build-site.py`. A paging
+test that never has two pages proves nothing.
+
+`data/index.json` is still deployed: it is the machine endpoint for CLI
+consumers and for anyone who wants the whole registry in one document. The
+browser never reads it, and `check-site.py` fails if it does.
+
 ## What `publish.yml` does, step by step
 
 1. Validates every agent (`tools/validate.py --strict`) — the same check a
    contributor runs locally.
 2. Restores the registry signing key from the `ACOWORK_AGENTS_SIGNING_KEY`
    secret.
-3. Packs and signs every agent (`tools/ci-pack-all.py`), then verifies each
-   package it just produced. A signing bug must fail the release, not ship.
-4. Runs the tamper-detection self test (`tools/selftest.py`) — proves the
+3. Computes the registry digest and compares it with the published baseline
+   (`tools/registry-digest.py --compare`) — unchanged content stops here.
+4. Packs and signs only the agents whose content changed
+   (`tools/ci-pack-all.py --changed --reuse`), then verifies **every** package,
+   reused or new. A signing bug must fail the release, not ship.
+5. Runs the tamper-detection self test (`tools/selftest.py`) — proves the
    signature actually detects an altered package.
-5. Builds `index.json` (`tools/build-index.py`) and validates it against
+6. Builds `index.json` (`tools/build-index.py`) and validates it against
    `schema/agent.schema.json`.
-6. **Runs the main repo's own manifest parser over every package.** The hub's
+7. **Runs the main repo's own manifest parser over every package.** The hub's
    schema is a *mirror* of the main repo's `AgentManifest`, and a mirror can
    drift. This step is what stops the hub from publishing a package the app
    would refuse to install.
-7. Builds the site (`tools/build-site.py`) and **renders it in a headless
-   browser** (`tools/check-site.py`). A 200 on `index.html` proves nothing —
-   the page is rendered by JavaScript from `index.json`.
-8. Publishes the GitHub Release.
-9. Deploys `dist/site` to Cloudflare Pages.
+8. Builds the site (`tools/build-site.py`) and **renders it in a headless
+   browser** (`tools/check-site.py`), including a synthetic 130-agent registry
+   to prove the shards page correctly. A 200 on `index.html` proves nothing —
+   the page is drawn by JavaScript from the shard set.
+9. Updates the rolling `latest` release in place: uploads the current packages,
+   index, checksums and digest, then deletes assets this build no longer
+   produces. Skipped entirely when the content gate says nothing changed.
+10. Deploys `dist/site` to Cloudflare Pages — skipped when the release already
+    records this commit as deployed.
 
-Steps 6 and 7 are the interesting ones. Both exist because the obvious
+Steps 7 and 8 are the interesting ones. Both exist because the obvious
 check ("the file is there, the server returns 200") does not actually test
 the thing that matters: that the package installs, and that the page shows
 the packages.

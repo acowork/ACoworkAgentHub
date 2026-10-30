@@ -1,11 +1,19 @@
 name: publish
 
-# Rebuild the whole registry on main: pack every agent, sign it with the
-# registry key, regenerate index.json, build the site, and publish both.
+# Publish the registry from main. The pipeline is content-gated: a push that
+# does not change the published bytes does not pack, sign, upload or redeploy
+# anything. Published bytes are a function of (source trees, builder, signing
+# key), so all three are in the digest that decides.
 #
-# Nothing is committed to the repository. The Release is the single
-# distribution point for the community registry; hub.acowork.ai is
-# served from the same build, so the page and the index can never drift.
+# Why gate at all: re-signing identical content on every push produces new
+# artifacts for no reason, which makes the release history meaningless, breaks
+# HTTP caching on the site, and turns "what changed" into an unanswerable
+# question. `tools/registry-digest.py` is the single definition of that answer.
+#
+# Nothing is committed to the repository. Packages are served from the static
+# site (hub.acowork.ai/downloads/); the rolling `latest` release carries the
+# same snapshot for API consumers and acts as the baseline the next run diffs
+# against. One release, reused forever — no dated releases piling up assets.
 
 on:
   push:
@@ -13,7 +21,11 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Build and verify, but do not publish a Release or deploy"
+        description: "Build and verify, but do not publish or deploy"
+        type: boolean
+        default: false
+      force:
+        description: "Ignore the content gate and republish everything"
         type: boolean
         default: false
 
@@ -29,8 +41,10 @@ jobs:
     name: Pack, sign and publish the registry
     runs-on: ubuntu-latest
     env:
-      # Cloudflare Pages project for hub.acowork.ai. The token and the
-      # account id are repository secrets; the project name is a constant.
+      MAIN_REPO: acowork/ACowork
+      ROLLING_TAG: latest
+      # Cloudflare Pages project for hub.acowork.ai. The token and the account
+      # id are repository secrets; the project name is a constant.
       CLOUDFLARE_PROJECT_NAME: acowork-agent-hub
     steps:
       - uses: actions/checkout@v4
@@ -40,17 +54,15 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install jsonschema cryptography
+        run: pip install jsonschema cryptography playwright && python -m playwright install --with-deps chromium
 
       - name: Validate all agent manifests
         run: python tools/validate.py --check-template --strict
 
+      # Clone the main repo exactly once per job, and idempotently: `git clone`
+      # refuses a non-empty destination and fails instantly, so a repeated
+      # clone into ../main-repo would break every step that reuses it.
       - name: Clone the main repo (upstream source of truth)
-        env:
-          MAIN_REPO: acowork/ACowork
-        # Exactly one clone per job, and idempotent: `git clone` refuses a
-        # non-empty destination and fails instantly, so a repeated clone into
-        # ../main-repo would break every later step that reuses this checkout.
         run: |
           if [ -d ../main-repo/.git ]; then
             echo "reusing the existing ../main-repo checkout"
@@ -69,31 +81,118 @@ jobs:
           REGISTRY_KEY_B64: ${{ secrets.ACOWORK_AGENTS_SIGNING_KEY }}
         run: |
           if [ -z "$REGISTRY_KEY_B64" ]; then
-            echo "::error::secret ACOWORK_AGENTS_SIGNING_KEY is not configured"
+            echo "::error::secret ACOWORK_AGENTS_SIGNING_KEY is not configured. Base64 the raw 32-byte seed that produced the fingerprint in registry/trusted-keys.json — see docs/publishing.md."
             exit 1
           fi
           mkdir -p .keys
-          python -c "import base64,os,sys; open('.keys/registry.key','wb').write(base64.b64decode(os.environ['REGISTRY_KEY_B64']))"
+          printf '%s' "$REGISTRY_KEY_B64" | base64 -d > .keys/registry.key
           chmod 600 .keys/registry.key
 
-      - name: Pack and sign every agent
-        run: python tools/ci-pack-all.py --out dist --key .keys/registry.key
+      # The private key lives in a secret and its fingerprint lives in a
+      # committed file. Nothing else proves they are the same key, and a
+      # mismatch publishes packages that read as "signed by an unknown key".
+      - name: Check the signing key against the trust anchor
+        run: python tools/check-key.py --key .keys/registry.key
+
+      # The rolling release is the baseline: what is published right now.
+      # Fetching it gives the digest to diff against and the packages to reuse.
+      - name: Fetch the published registry (baseline)
+        run: |
+          mkdir -p .ci/published
+          if gh release view "$ROLLING_TAG" >/dev/null 2>&1; then
+            gh release download "$ROLLING_TAG" -p '*.agent' --dir .ci/published || true
+            gh release download "$ROLLING_TAG" -p 'registry.digest.json' --dir .ci || true
+            gh release download "$ROLLING_TAG" -p 'deployed-commit' --dir .ci || true
+          else
+            echo "no '$ROLLING_TAG' release yet — this run publishes from scratch"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Decide what has to be published
+        id: gate
+        run: |
+          mkdir -p .ci
+          python tools/registry-digest.py --out .ci/current.digest.json \
+              --key .keys/registry.key
+          if [ -f .ci/registry.digest.json ]; then
+            python tools/registry-digest.py --compare .ci/registry.digest.json \
+                --key .keys/registry.key --changed-out .ci/changed.txt
+            rc=$?
+          else
+            echo "no baseline digest — full build"
+            rc=0
+          fi
+          if [ "${{ inputs.force }}" = "true" ]; then
+            echo "::notice::force requested — ignoring the content gate"
+            rc=0
+            rm -f .ci/changed.txt   # no list = rebuild every agent
+          fi
+          if [ "$rc" -eq 2 ]; then
+            publish=false
+          else
+            publish=true
+          fi
+          echo "publish=$publish" >> "$GITHUB_OUTPUT"
+          echo "changed_count=$( [ -f .ci/changed.txt ] && wc -l < .ci/changed.txt || echo all )" >> "$GITHUB_OUTPUT"
+
+          # The site is deployed only when its content or its code moved.
+          deployed="$(cat .ci/deployed-commit 2>/dev/null || echo none)"
+          if [ "$deployed" = "${GITHUB_SHA}" ]; then
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Pack and sign (only what changed)
+        if: steps.gate.outputs.publish == 'true'
+        run: |
+          args="--out dist --key .keys/registry.key --reuse .ci/published"
+          if [ -f .ci/changed.txt ]; then args="$args --changed .ci/changed.txt"; fi
+          python tools/ci-pack-all.py $args
+        # Reuse is decided by comparing the published bytes against the source
+        # tree, not by trusting the changed list — a stale or hand-edited list
+        # cannot publish an old package under a new version.
 
       - name: Tamper-detection self test (official channel key)
+        if: steps.gate.outputs.publish == 'true'
         run: python tools/selftest.py --key .keys/registry.key
 
       - name: Build the index
+        if: steps.gate.outputs.publish == 'true'
         run: python tools/build-index.py --out dist/index.json --packages dist/ --repo "${{ github.server_url }}/${{ github.repository }}"
 
       - name: Validate the index
+        if: steps.gate.outputs.publish == 'true'
         run: python tools/check-index.py dist/index.json schema/agent.schema.json
 
+      # When nothing in the registry changed, the published index and digest
+      # are still needed on disk for the site build and the render check.
+      - name: Reuse the published index and digest
+        if: steps.gate.outputs.publish == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p dist
+          # The site bundles the packages it links to, so "nothing changed"
+          # still needs them present — they are simply the already published
+          # copies rather than freshly signed ones.
+          cp .ci/published/*.agent dist/ 2>/dev/null || {
+            gh release download "$ROLLING_TAG" -p '*.agent' --dir dist
+          }
+          gh release download "$ROLLING_TAG" -p 'index.json' --dir dist || true
+          if [ -f .ci/registry.digest.json ]; then
+            cp .ci/registry.digest.json dist/registry.digest.json
+          else
+            python tools/registry-digest.py --out dist/registry.digest.json --key .keys/registry.key
+          fi
+
       # Every published package must also be accepted by the main repo's own
-      # manifest parser. A hub-only field that slipped into manifest.toml
-      # would be silently dropped on clone — and the package would break.
+      # manifest parser. A hub-only field that slipped into manifest.toml would
+      # be silently dropped on clone — and the package would break.
       #
-      # ACOWORK_HUB_DIR points the guard at this checkout's agents/. Without
-      # it the guard cannot find its subject and fails — it never skips.
+      # ACOWORK_HUB_DIR points the guard at this checkout's agents/. Without it
+      # the guard cannot find its subject and fails — it never skips.
       - name: Interop check against the main repo
         env:
           ACOWORK_HUB_DIR: ${{ github.workspace }}/agents
@@ -104,47 +203,75 @@ jobs:
           cargo test -p acowork-core --test hub_interop
 
       - name: Build the site
-        run: python tools/build-site.py --index dist/index.json --packages dist/ --out dist/site
+        run: python tools/build-site.py --index dist/index.json --packages dist/ --out dist/site --registry-digest dist/registry.digest.json
 
       - name: Render the site in a headless browser and check it
-        run: |
-          pip install playwright
-          python -m playwright install --with-deps chromium
-          python tools/check-site.py --site dist/site --screenshot dist/site.png
+        run: python tools/check-site.py --site dist/site --fixture-count 130
 
       - name: Write checksums for the release
+        if: steps.gate.outputs.publish == 'true'
         run: |
-          cd dist
-          sha256sum *.agent > SHA256SUMS
-          cat SHA256SUMS
+          # Checksums over exactly what the release carries, so a consumer can
+          # verify a download without trusting the transport.
+          (cd dist && sha256sum *.agent index.json > SHA256SUMS)
 
-      - name: Publish the release
-        if: ${{ !inputs.dry_run }}
+      # One rolling release, reused. Assets are clobbered by name and stale
+      # ones deleted, so an agent that leaves the registry leaves its package
+      # behind nothing: the release always mirrors the current snapshot
+      # instead of accumulating one copy per publish.
+      - name: Publish the rolling release
+        if: ${{ steps.gate.outputs.publish == 'true' && !inputs.dry_run }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          tag="v$(date -u +%Y-%m-%d)-${GITHUB_SHA::8}"
-          gh release create "$tag" \
-            --title "$tag" \
-            --notes "Community agent registry snapshot. Generated by publish.yml from ${GITHUB_SHA}." \
-            dist/index.json dist/SHA256SUMS dist/*.agent dist/*.sha256
+          python tools/registry-digest.py --out dist/registry.digest.json \
+              --packages dist --key .keys/registry.key
+          if ! gh release view "$ROLLING_TAG" >/dev/null 2>&1; then
+            gh release create "$ROLLING_TAG" \
+              --title "Agent Hub registry (rolling)" \
+              --notes "Current published snapshot. Replaced in place by publish.yml; the content gate in this workflow decides when that happens." \
+              --target "$GITHUB_SHA"
+          fi
+          gh release upload "$ROLLING_TAG" dist/*.agent dist/index.json dist/SHA256SUMS dist/registry.digest.json --clobber
 
-      # The site is deployed from the same build that produced the Release,
-      # so the page, the index and the packages are always the same snapshot.
+          # Prune: anything on the release that this build does not produce.
+          gh release view "$ROLLING_TAG" --json assets -q '.assets[].name' | sort > .ci/remote.txt
+          { (cd dist && ls *.agent index.json SHA256SUMS registry.digest.json) ; echo deployed-commit ; }             | sort > .ci/local.txt
+          comm -23 .ci/remote.txt .ci/local.txt | while read -r stale; do
+            echo "deleting stale release asset: $stale"
+            gh release delete-asset "$ROLLING_TAG" "$stale" --yes
+          done
+
       - name: Deploy the site to Cloudflare Pages
-        if: ${{ !inputs.dry_run }}
+        if: ${{ steps.gate.outputs.deploy == 'true' && !inputs.dry_run }}
         env:
+          GH_TOKEN: ${{ github.token }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
-            echo "::error::Cloudflare Pages secrets are not configured - skipping the site deploy"
+            echo "::error::Cloudflare Pages secrets are not configured - the site would stay on a stale build"
             exit 1
           fi
           npx --yes wrangler@3 pages deploy dist/site \
             --project-name "$CLOUDFLARE_PROJECT_NAME" \
             --branch main \
             --commit-dirty=true
+          # Record what the deployed site corresponds to, so the next run can
+          # skip a deploy that would produce an identical site.
+          printf '%s' "$GITHUB_SHA" > .ci/deployed-commit
+          gh release upload "$ROLLING_TAG" .ci/deployed-commit --clobber
+
+      - name: Report the gate outcome
+        if: always()
+        run: |
+          echo "## Agent Hub publish" >> "$GITHUB_STEP_SUMMARY"
+          echo "- registry publish: **${{ steps.gate.outputs.publish }}**" >> "$GITHUB_STEP_SUMMARY"
+          echo "- agents packed: ${{ steps.gate.outputs.changed_count }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- site deploy: **${{ steps.gate.outputs.deploy }}**" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f dist/registry.digest.json ]; then
+            echo "- registry digest: \`$(python -c "import json;print(json.load(open('dist/registry.digest.json'))['registry_digest'][:16])" 2>/dev/null || echo unknown)\`" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Upload the index as an artifact
         if: always()
@@ -152,7 +279,8 @@ jobs:
         with:
           name: registry-index
           path: dist/index.json
-          retention-days: 30
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: Upload the built site as an artifact
         if: always()
@@ -160,4 +288,5 @@ jobs:
         with:
           name: hub-site
           path: dist/site
-          retention-days: 30
+          retention-days: 7
+          if-no-files-found: ignore
