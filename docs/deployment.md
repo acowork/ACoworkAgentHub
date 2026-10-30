@@ -319,15 +319,28 @@ summary:
 
 ### 2.4 Verify a deploy
 
-Headers are a Cloudflare feature, so they can only be verified in production:
+Headers are a Cloudflare feature, so they can only be verified in production.
+Run the live checker:
 
 ```sh
-curl -sI https://hub.acowork.ai/data/meta.json  | grep -i cache-control   # no-cache
-curl -sI https://hub.acowork.ai/data/pages/p000.json | grep -i cache-control  # immutable
-curl -sI https://hub.acowork.ai/downloads/com.acowork.pm.agent | grep -iE "cache|disposition"
+python tools/check-live.py            # -> "LIVE SITE OK"
 ```
 
-Then confirm the page and the registry agree:
+It asserts, against the deployed site: the page paints cards, first paint pulls
+`meta.json` + one shard and **no** detail payload, `?v=<build>` on `hub.js` and
+`styles.css` equals the build id inside `meta.json` (so the stamp came from the
+builder, not from a hand bump), each path carries the cache policy `_headers`
+promises, every `.agent` the site serves has the same byte size as the release
+asset, and searching pulls the remaining shards.
+
+Why it drives a headless browser instead of `curl`: Cloudflare rejects some raw
+HTTP clients from certain networks (`403 error code: 1010`, or the connection
+just stalls). A stalled client looks exactly like a broken deploy. Requests
+issued by the page itself are what a visitor actually makes, so that is what the
+checker measures — with hard timeouts, so a stalled request fails instead of
+hanging.
+
+Then confirm the registry agrees:
 
 ```sh
 curl -s https://hub.acowork.ai/data/meta.json | python -m json.tool | head -20
