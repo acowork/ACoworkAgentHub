@@ -195,9 +195,27 @@ but does not create it.
 npx --yes wrangler@3 pages project create acowork-agent-hub --production-branch main
 ```
 
-Or in the dashboard: **Workers & Pages → Create → Pages → Connect to Git**,
-then immediately switch to direct upload — see §2.2 for why the hub is *not*
-git-integrated.
+The new dashboard's *Create application* screen has **no "empty project" button**:
+it offers "Continue with GitHub" (git-integrated — wrong for this project),
+templates, and "Upload your static files", which asks you to drag files right
+then. Two correct ways to get an empty Direct Upload project:
+
+- the `wrangler` command above, or
+- the link at the **bottom** of that screen — *"需要使用旧版 Pages 工作流？继续前往
+  Pages"* — which opens the classic Pages UI where *Create application → Pages →
+  Direct upload* creates the project without requiring an upload.
+
+Do **not** pick "Continue with GitHub" on the assumption that it can be changed
+later. Git integration and Direct Upload are not interchangeable: the docs state
+that a Direct Upload project cannot be switched to Git integration, and a
+git-integrated project cannot take a deployed bundle from `wrangler pages
+deploy`. The hub must be Direct Upload because its deployable directory contains
+signed packages that the Pages build environment cannot produce (§2.2).
+
+Until the first CI deploy lands, the project is empty and `hub.acowork.ai`
+returns 404. That is the expected state, not a failure — and it is also why the
+first publish is a manual *Run workflow → force* rather than a push
+(§2.3).
 
 **b. Custom domain.** *Project → Custom domains → Set up → `hub.acowork.ai`*.
 If `acowork.ai` is on Cloudflare DNS, Pages creates the `CNAME` and proxies it;
@@ -251,9 +269,29 @@ The consequence to remember: **the site and the release are the same build.**
 Deploying one without the other is how a page ends up describing a package
 that no longer exists.
 
+And the choice is not reversible: Cloudflare states that a Direct Upload project
+cannot be switched to Git integration afterwards, so picking the wrong type at
+creation time means a new project and a new domain binding, not a setting to
+toggle (§2.1a).
+
 ### 2.3 Routine publish
 
-Push to `main`. That is the whole procedure. The pipeline then:
+**The first time only.** The gate compares this build's content against the
+published baseline. On a brand-new hub the agents are already committed, so the
+content *has not changed* — the gate would report `publish NOT NEEDED` and skip
+packing, release **and deploy**, leaving the empty Pages project at 404 forever.
+A push cannot bootstrap itself. Run the workflow by hand instead:
+
+1. Actions → workflow **publish** (the list shows the workflow name; *Pack, sign
+   and publish the registry* is the job inside it) → **Run workflow** → tick
+   **`dry_run`** ("Build and verify, but do not publish or deploy"). This proves
+   the key, the trust anchor and the site render before anything is public.
+2. Run it again with **`force`** ticked ("Ignore the content gate and republish
+   everything"). That is the first real release and the first deploy.
+
+From then on, `git push` is the whole procedure:
+
+Push to `main`. The pipeline then:
 
 1. validates manifests, clones the main repo, checks the official mirror;
 2. restores the signing key and checks it against the trust anchor;
@@ -305,6 +343,8 @@ anything, the gate is broken** and that is a bug worth stopping on.
 
 | Symptom | Cause | Fix |
 |---|---|---|
+| `hub.acowork.ai` 404 right after creating the project | nothing has been deployed yet; a new Direct Upload project is empty, and the content gate will not bootstrap itself | run workflow **publish** with `force` (§2.3) |
+| Site serves packages that read as "third-party" after a hand-made deploy | someone uploaded a locally built `dist/site`, signed with an ephemeral key | re-run publish with `force` once the real key is configured; do not deploy by hand |
 | `Restore the registry signing key` fails | secret missing | add `ACOWORK_AGENTS_SIGNING_KEY` (§2.1c) |
 | `Check the signing key against the trust anchor` fails | secret and `trusted-keys.json` disagree | set the secret to the listed key, or register the new fingerprint |
 | Packages install but read as "unknown signer" | same as above, discovered late | `python tools/check-key.py` |
