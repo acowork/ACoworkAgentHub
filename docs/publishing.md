@@ -268,16 +268,21 @@ than silently leaving the site on a stale build.
 
 ## The website's role
 
-The main site (`acowork.ai`) keeps its own `agents/` page for the platform
-agents that ship with ACowork. That page links to `hub.acowork.ai`; the hub
-page links back. Neither site fetches the other's data — the platform page
-is generated from the main repo's `examples/`, the hub page from this
-repo's `agents/`.
+The main site (`acowork.ai`) has **no agent page**. Its nav carries one link, to
+`hub.acowork.ai`, and that is the whole integration. There is no second index,
+no projected copy of the registry and no duplicated `.agent` file on that side:
+the hub serves the platform agents as well as community ones, so a separate
+platform page would only be a stale mirror of a subset.
 
-The two registries are joined by the agent id, not by a merged index: the
-platform agents re-published here keep their original `com.acowork.*` ids,
-so an installed package stays upgradeable instead of forking into a second,
-differently-named agent.
+What the hub does keep is the identity. The platform agents published here carry
+their original `com.acowork.*` ids rather than a re-minted namespace, so a
+package installed from the main repo's examples stays upgradeable from this
+registry instead of forking into a second, differently-named agent.
+
+The source of truth for those agents is still the main repo's `examples/`:
+`tools/sync-official.py` mirrors them here byte-for-byte, and `validate.yml`
+fails if the two copies drift. So "the hub serves them" does not mean "the hub
+owns them".
 
 ## Reproducing a release locally
 
