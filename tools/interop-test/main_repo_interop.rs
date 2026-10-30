@@ -22,16 +22,41 @@ use std::path::{Path, PathBuf};
 
 use acowork_core::manifest::{AgentManifest, SkillDecl};
 
-/// The hub repository's `agents/` directory, resolved from the main repo checkout.
+/// The hub repository's `agents/` directory.
+///
+/// Resolution order:
+///   1. `ACOWORK_HUB_DIR` — an explicit path to the hub's `agents/` directory.
+///   2. `../ACoworkAgentHub/agents` relative to the main repo checkout.
+///
+/// If neither exists the tests FAIL rather than skip. A guard that silently
+/// passes when it cannot find its subject is worse than no guard at all: it
+/// reports "the hub's packages are fine" while checking nothing.
 fn hub_agents_dir() -> PathBuf {
+    if let Ok(explicit) = std::env::var("ACOWORK_HUB_DIR") {
+        let path = PathBuf::from(explicit);
+        if path.is_dir() {
+            return path;
+        }
+        panic!(
+            "ACOWORK_HUB_DIR points at `{}`, which is not a directory",
+            path.display()
+        );
+    }
+
     // CARGO_MANIFEST_DIR = <main repo>/core/acowork-core
     let main_repo = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("..")
         .join("..");
-    main_repo
-        .join("..")
-        .join("ACoworkAgentHub")
-        .join("agents")
+    let sibling = main_repo.join("..").join("ACoworkAgentHub").join("agents");
+    if sibling.is_dir() {
+        return sibling;
+    }
+
+    panic!(
+        "cannot find the hub's agents/ directory — set ACOWORK_HUB_DIR, or check \
+         out ACoworkAgentHub next to the main repo (looked in `{}`)",
+        sibling.display()
+    );
 }
 
 /// Every `agents/<owner>/<name>/manifest.toml` in the hub, skipping `_template`.
@@ -114,10 +139,10 @@ fn shipped_skills(package_dir: &Path) -> Vec<SkillDecl> {
 #[test]
 fn every_hub_manifest_parses_and_validates_in_the_main_repo() {
     let paths = manifest_paths();
-    if paths.is_empty() {
-        eprintln!("no hub packages found next to the main repo — skipping");
-        return;
-    }
+    assert!(
+        !paths.is_empty(),
+        "no hub packages found — the interop guard would check nothing"
+    );
     for path in paths {
         let raw = std::fs::read_to_string(&path)
             .unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()));
@@ -132,9 +157,10 @@ fn every_hub_manifest_parses_and_validates_in_the_main_repo() {
 #[test]
 fn every_hub_capability_points_at_a_shipped_skill() {
     let paths = manifest_paths();
-    if paths.is_empty() {
-        return;
-    }
+    assert!(
+        !paths.is_empty(),
+        "no hub packages found — the interop guard would check nothing"
+    );
     for path in paths {
         let package_dir = path.parent().expect("manifest has a parent");
         let raw = std::fs::read_to_string(&path).expect("read manifest");
@@ -156,9 +182,10 @@ fn every_hub_manifest_declares_no_hub_only_fields() {
     // hub-only field written into manifest.toml would be silently dropped.
     // Hub metadata must live in hub.json — this test pins that rule.
     let paths = manifest_paths();
-    if paths.is_empty() {
-        return;
-    }
+    assert!(
+        !paths.is_empty(),
+        "no hub packages found — the interop guard would check nothing"
+    );
     for path in paths {
         let raw = std::fs::read_to_string(&path).expect("read manifest");
         let doc: toml::Table = raw.parse().expect("parse as toml");

@@ -292,7 +292,6 @@ def main() -> int:
     ap.add_argument("--main-repo", required=True, help="path to the ACowork main repo checkout")
     ap.add_argument("--check", action="store_true", help="report differences without writing")
     args = ap.parse_args()
-
     main_repo = Path(args.main_repo).resolve()
     examples_dir = main_repo / "examples"
     if not examples_dir.is_dir():

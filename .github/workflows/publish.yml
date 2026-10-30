@@ -45,6 +45,16 @@ jobs:
       - name: Validate all agent manifests
         run: python tools/validate.py --check-template --strict
 
+      # The main repo's `examples/*` is the source of truth for the platform
+      # agents mirrored under agents/official/. Publishing a stale mirror
+      # would ship packages the main repo has already replaced.
+      - name: Check the official-agent mirror against the main repo
+        env:
+          MAIN_REPO: acowork/ACowork
+        run: |
+          git clone --depth 1 "https://github.com/$MAIN_REPO.git" ../main-repo
+          python tools/sync-official.py --main-repo ../main-repo --check
+
       - name: Restore the registry signing key
         env:
           REGISTRY_KEY_B64: ${{ secrets.ACOWORK_AGENTS_SIGNING_KEY }}
@@ -72,9 +82,13 @@ jobs:
       # Every published package must also be accepted by the main repo's own
       # manifest parser. A hub-only field that slipped into manifest.toml
       # would be silently dropped on clone — and the package would break.
+      #
+      # ACOWORK_HUB_DIR points the guard at this checkout's agents/. Without
+      # it the guard cannot find its subject and fails — it never skips.
       - name: Interop check against the main repo
         env:
           MAIN_REPO: acowork/ACowork
+          ACOWORK_HUB_DIR: ${{ github.workspace }}/agents
         run: |
           git clone --depth 1 "https://github.com/$MAIN_REPO.git" ../main-repo
           cp tools/interop-test/main_repo_interop.rs ../main-repo/core/acowork-core/tests/hub_interop.rs
