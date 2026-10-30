@@ -122,6 +122,23 @@ the packages.
 The Cloudflare Pages project is `acowork-agent-hub`; its custom domain is
 `hub.acowork.ai` (set in `site/CNAME`).
 
+To fill in `ACOWORK_AGENTS_SIGNING_KEY`, base64 the seed that generated the
+fingerprint in [`registry/trusted-keys.json`](../registry/trusted-keys.json)
+— the key lives in the gitignored `.keys/registry.key` on the machine that
+created it:
+
+```sh
+python -c "import base64,sys; sys.stdout.write(base64.b64encode(open('.keys/registry.key','rb').read()).decode())"
+```
+
+Paste the output as the secret value. If the seed and `trusted-keys.json`
+disagree, publishing "succeeds" but every package is reported as signed by
+an unknown key — check the fingerprint before you blame the verifier:
+
+```sh
+python tools/check-key.py        # seed -> fingerprint -> trusted-keys.json
+```
+
 If the Cloudflare secrets are missing, the deploy step fails loudly rather
 than silently leaving the site on a stale build.
 
