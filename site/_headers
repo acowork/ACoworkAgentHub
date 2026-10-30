@@ -1,17 +1,80 @@
 # Cloudflare Pages response headers.
 # https://developers.cloudflare.com/pages/configuration/headers/
+#
+# One URL pattern per block: the docs define a block as "the first line is the
+# URL", and a header matched by more than one rule is *joined with a comma*,
+# which would produce `Cache-Control: no-cache, no-cache` or a worse mix. So
+# paths are listed separately even when their headers repeat.
+#
+# The rules differ per path on purpose. The page loads three tiers of data and
+# only some of them are content-versioned by URL:
+#
+#   hub.js, styles.css        stamped ?v=<build> by the builder   -> cache forever
+#   data/meta.json            stable URL, changes every publish   -> revalidate
+#   data/pages/*, details/*   requested as ?v=<build>             -> cache forever
+#   data/index.json           stable URL, machine endpoint        -> revalidate
+#   downloads/*.agent         stable URL, replaced by new version -> revalidate
+#   assets/*                  fixed names from styles.css         -> revalidate
+#
+# A file whose URL never changes cannot be cached long: the next publish would
+# keep serving old bytes to anyone with a warm cache. That is why the shards and
+# the page's own code carry a build id in the query string and the packages do
+# not — a stale package is an integrity problem, not a UX one.
+#
+# `tools/check-site.py` asserts both halves of that sentence: every shipped code
+# file has an explicit policy, and the build id moves with data *and* code but
+# not with provenance. `tools/serve-site.py` applies this file locally so the
+# claim can be tested before it reaches Cloudflare.
 
 /*
   X-Content-Type-Options: nosniff
 
+/
+  Cache-Control: no-cache
+
+/index.html
+  Cache-Control: no-cache
+
+/data/meta.json
+  Cache-Control: no-cache
+
+/data/index.json
+  Cache-Control: no-cache
+
+# The page's own script and stylesheet are stamped with `?v=<build>` by the
+# builder (see stamp_asset_versions in tools/build-site.py), so they are
+# immutable per URL too. Without that stamp a returning visitor could run an old
+# hub.js against new shards — a correctness failure, not a cosmetic one.
+/hub.js
+  Cache-Control: public, max-age=31536000, immutable
+
+/styles.css
+  Cache-Control: public, max-age=31536000, immutable
+
+# Fonts and the logo are referenced by fixed names from styles.css, so their
+# URLs say nothing about their content. They must revalidate rather than fall
+# back to a heuristic expiry a browser would guess from Last-Modified.
+/assets/*
+  Cache-Control: public, max-age=0, must-revalidate
+
+# Card shards and detail records are immutable for a given build id, and the
+# page requests them with `?v=<build>`. A publish that changed nothing reuses
+# the same build id, so returning visitors hit their cache, not the origin.
+/data/pages/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/data/details/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/avatars/*
+  Cache-Control: public, max-age=31536000, immutable
+
 # Agent packages are opaque ZIP containers with an unknown extension; without
 # an explicit disposition a browser may try to render them as text when the
 # URL is opened directly rather than clicked through the [download] anchor.
+# `/downloads/*` already covers every package: a second, more specific rule
+# would match the same request and join its Cache-Control with a comma.
 /downloads/*
   Content-Disposition: attachment
   Content-Type: application/octet-stream
-
-# The index is the registry's public data. It changes on every publish, so
-# it must never be cached by a CDN edge that outlives a release.
-/data/*
   Cache-Control: no-cache

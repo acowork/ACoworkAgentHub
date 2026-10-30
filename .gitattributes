@@ -29,6 +29,12 @@ agents/**/hub.json      -text
 *.svg  text eol=lf
 *.txt  text eol=lf
 
+# Pages configuration files have no extension, so the catch-all `* -text` would
+# otherwise store whatever line endings an editor happened to write.
+_headers text eol=lf
+_redirects text eol=lf
+CNAME    text eol=lf
+
 # --- binary assets: stored as they are ---
 *.jpg  binary
 *.jpeg binary

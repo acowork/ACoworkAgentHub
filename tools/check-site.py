@@ -275,6 +275,132 @@ def check_sharding(page, base: str, meta: dict, errors: list[str]) -> None:
         )
 
 
+def _load_module(name: str, path: Path):
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(name, str(path))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def check_build_identity(site: Path, errors: list[str]) -> None:
+    """Guard the two cache invariants the build id exists to enforce.
+
+    The build id is the URL of every immutable asset, so it has to be exactly
+    as sensitive as the cache policy assumes:
+
+    * **not** sensitive to provenance (`generated_at`, `source.commit`). A
+      docs-only commit is a new commit; if the id moved with it, every
+      returning visitor would re-download every shard, script and stylesheet
+      for a change that touched nothing they can see.
+    * **fully** sensitive to page code. `hub.js` is cached for a year by URL, so
+      an id that ignored its bytes would let visitors run an old script against
+      new data — the one failure mode immutable caching cannot recover from.
+
+    Also asserts the stamp reached the HTML and that no shipped code file is
+    left with a heuristic cache policy.
+    """
+    bs = _load_module("build_site_mod", REPO_ROOT / "tools" / "build-site.py")
+    ss = _load_module("serve_site_mod", REPO_ROOT / "tools" / "serve-site.py")
+
+    src_site = REPO_ROOT / "site"
+    built_index = site / "data" / "index.json"
+    if not built_index.is_file():
+        errors.append(f"{built_index} missing — cannot check build identity")
+        return
+    meta = json.loads((site / "data" / "meta.json").read_text(encoding="utf-8"))
+    build_id = str(meta.get("build", ""))
+    doc = json.loads(built_index.read_text(encoding="utf-8"))
+
+    # 1. the stamp is in the page, or immutable caching is meaningless
+    html = (site / "index.html").read_text(encoding="utf-8")
+    for asset in ("hub.js", "styles.css"):
+        if f"{asset}?v={build_id}" not in html:
+            errors.append(
+                f"index.html does not request {asset} with ?v={build_id}; "
+                "a cached copy could outlive the data it was written for"
+            )
+
+    # 2. every code file the page ships has an explicit policy
+    rules = ss.load_headers(site)
+    for asset in ("/hub.js", "/styles.css", "/data/meta.json", "/index.html"):
+        merged = ss.headers_for(rules, asset)
+        if "Cache-Control" not in merged:
+            errors.append(
+                f"{asset} has no Cache-Control rule; the browser would guess from "
+                "Last-Modified, which is how a stale script survives a deploy"
+            )
+
+    work = Path(tempfile.mkdtemp(prefix="hubidentity"))
+    try:
+        base = bs.compute_build_id(built_index, src_site)
+
+        # 3. provenance-only change must NOT move the id
+        churn = copy.deepcopy(doc)
+        churn["generated_at"] = "2000-01-01T00:00:00Z"
+        churn["source"] = {"commit": "0" * 40, "branch": "nowhere"}
+        churn_path = work / "churn.json"
+        churn_path.write_text(json.dumps(churn, ensure_ascii=False), encoding="utf-8")
+        moved = bs.compute_build_id(churn_path, src_site)
+        if moved != base:
+            errors.append(
+                f"build id changed when only provenance changed ({base} -> {moved}); "
+                "every deploy would bust every immutable cache"
+            )
+
+        # 4. a data change MUST move the id
+        data_mut = copy.deepcopy(doc)
+        data_mut["agents"][0]["display_name"] = str(data_mut["agents"][0].get("display_name", "")) + " X"
+        data_path = work / "data.json"
+        data_path.write_text(json.dumps(data_mut, ensure_ascii=False), encoding="utf-8")
+        if bs.compute_build_id(data_path, src_site) == base:
+            errors.append("build id ignored a change to the registry content")
+
+        # 5. a code change MUST move the id
+        code_site = work / "site"
+        code_site.mkdir()
+        for name in ("index.html", "hub.js", "styles.css", "_headers"):
+            if (src_site / name).is_file():
+                shutil.copy2(src_site / name, code_site / name)
+        with (code_site / "hub.js").open("ab") as fh:
+            fh.write(b"\n// touched\n")
+        if bs.compute_build_id(built_index, code_site) == base:
+            errors.append(
+                "build id ignored a change to hub.js; visitors would keep running "
+                "the previous script out of cache"
+            )
+
+        # 5b. line endings must NOT move the id. `.gitattributes` normalises
+        # these files to LF on checkout, so a Windows working copy and CI hold
+        # the same page in different bytes; an id that noticed would make every
+        # asset URL platform-dependent and the publish gate would flip on
+        # whichever machine ran it.
+        lf_site = work / "site_lf"
+        lf_site.mkdir()
+        for name in ("index.html", "hub.js", "styles.css", "_headers"):
+            if (src_site / name).is_file():
+                shutil.copy2(src_site / name, lf_site / name)
+            else:
+                continue
+            raw = (lf_site / name).read_bytes()
+            (lf_site / name).write_bytes(raw.replace(b"\r\n", b"\n").replace(b"\r", b"\n"))
+        if bs.compute_build_id(built_index, lf_site) != base:
+            errors.append(
+                "build id depends on line endings; a checkout and a working copy "
+                "would disagree about every cached URL"
+            )
+
+        # 6. the artifact on disk matches the sources it claims to be built from
+        if base != build_id:
+            errors.append(
+                f"built site declares build {build_id} but sources now hash to {base}: "
+                "the site is stale, rebuild it"
+            )
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--site", required=True, help="the built site directory")
@@ -287,6 +413,18 @@ def main() -> int:
     if not (site / "index.html").is_file():
         print(f"[check-site] FATAL: {site / 'index.html'} not found. Exit 2", file=sys.stderr)
         return 2
+
+    # Cache identity needs no browser, and it is the failure that a browser
+    # cannot see: a wrong build id renders as a perfectly good page serving
+    # years-old code to returning visitors.
+    identity_errors: list[str] = []
+    check_build_identity(site, identity_errors)
+    if identity_errors:
+        for msg in identity_errors:
+            print(f"[check-site] FAIL  {msg}", file=sys.stderr)
+        print(f"[check-site] {len(identity_errors)} build-identity problem(s). Exit 1",
+              file=sys.stderr)
+        return 1
     try:
         from playwright.sync_api import sync_playwright
     except ModuleNotFoundError:

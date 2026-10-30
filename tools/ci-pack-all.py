@@ -52,6 +52,25 @@ def package_section_digests(pkg_path: Path) -> dict[str, str]:
     return {d["section_name"]: d["digest"].hex() for d in signer["digests"]}
 
 
+def package_signer_fingerprint(pkg_path: Path) -> str | None:
+    """Who signed a published package, as a public-key fingerprint.
+
+    Content matching alone is not enough to reuse a package: after a key
+    rotation the old package still carries exactly the right bytes, so a
+    content-only check would happily publish a package signed by a key that
+    `trusted-keys.json` no longer lists — every agent would read as
+    "unknown signer" while the release looked untouched.
+    """
+    try:
+        block = signing.find_signing_block(pkg_path.read_bytes())
+        if block is None:
+            return None
+        signer = signing.decode_signing_block(block)["signers"][0]
+        return signing.public_key_fingerprint(signer["certificates"][0]["data"])
+    except Exception:  # noqa: BLE001 - unreadable means not reusable
+        return None
+
+
 def package_matches_source(pkg_path: Path, agent_dir: Path) -> bool:
     """Does this published package carry exactly the bytes in `agent_dir`?
 
@@ -101,8 +120,18 @@ def main() -> int:
     changed = read_changed(Path(args.changed) if args.changed else None)
     reuse_dir = Path(args.reuse).resolve() if args.reuse else None
 
+    # Reuse is only ever allowed within one signing identity.
+    key_fingerprint = None
+    if reuse_dir is not None:
+        key_fingerprint = signing.public_key_fingerprint(
+            signing.load_ed25519_private_key(key_path).public_key().public_bytes_raw()
+        )
+        print(f"[ci-pack-all] reuse enabled; packages not signed by {key_fingerprint[:12]} "
+              "will be re-signed")
+
     packed = 0
     reused = 0
+    resigned = 0
     for agent_dir in dirs:
         rel = agent_dir.relative_to(REPO_ROOT)
         manifest = tomllib.loads((agent_dir / "manifest.toml").read_text(encoding="utf-8"))
@@ -113,11 +142,18 @@ def main() -> int:
         if reuse_dir is not None and (changed is None or agent_id not in changed):
             candidate = reuse_dir / f"{agent_id}.agent"
             if candidate.is_file() and package_matches_source(candidate, agent_dir):
-                out_dir.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(candidate, target)
-                reused += 1
-                print(f"[ci-pack-all] {rel}: reused published package (content matches)")
-                continue
+                signer = package_signer_fingerprint(candidate)
+                if signer != key_fingerprint:
+                    print(f"[ci-pack-all] {rel}: content matches but it is signed by "
+                          f"{(signer or 'no key')[:12]} != {(key_fingerprint or '')[:12]} "
+                          "- re-signing")
+                    resigned += 1
+                else:
+                    out_dir.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(candidate, target)
+                    reused += 1
+                    print(f"[ci-pack-all] {rel}: reused published package (content and signer match)")
+                    continue
 
         print(f"::group::pack {rel}")
         result = pack.pack_agent(agent_dir, out_dir, key_path)
@@ -133,7 +169,9 @@ def main() -> int:
         )
         print("::endgroup::")
 
-    print(f"[ci-pack-all] OK: {len(dirs)} agent(s) -> {packed} packed, {reused} reused; all verified")
+    print(f"[ci-pack-all] OK: {len(dirs)} agent(s) -> {packed} packed, {reused} reused"
+          + (f", {resigned} re-signed for a new key" if resigned else "")
+          + "; all verified")
     return 0
 
 

@@ -61,16 +61,28 @@ Consequences the pipeline relies on:
 
 - **revert does not republish.** Editing a prompt and reverting it yields the
   same digest, so nothing is signed again.
-- **a builder-only change republishes without re-packing.** The digest says
-  "publish", the per-agent list says "no agent changed", so the published
-  packages are reused and only the index and site are rebuilt.
+- **a builder or signer change rebuilds every package.** The digest says
+  "publish" and `--changed-out` lists all of them. Reusing packages that this
+  builder did not produce, or this key did not sign, would leave the registry
+  holding two generations of package: an agent whose data never changed would
+  never receive a section the builder starts emitting.
 - **reuse is proven by content, not by bookkeeping.** `ci-pack-all.py` compares
   the signed section digests inside a published package against the current
   source tree before reusing it. A stale or hand-edited changed-list cannot
   publish an old package under a new version.
+- **reuse is also proven by signer.** Content matching alone would reuse a
+  package signed before a key rotation: the bytes are right, so it would ship,
+  and every agent would then read as "unknown signer" against a trust anchor
+  that no longer lists that key. A package is reusable only if its signer is
+  the key this build signs with — otherwise it is re-signed.
+- **line endings are not content.** `.gitattributes` normalises the builder's
+  own files to LF, so a Windows working copy and a CI checkout differ in bytes
+  while being the same program. Digests over those inputs canonicalise newlines;
+  package *content* is still hashed byte-exact, because those bytes ship.
 
-Both halves are tested on every pull request by `validate.yml`, because a gate
-only exercised at release time is a gate that fails silently — either always
+Every one of these is asserted on every pull request by
+`tools/selftest-publish.py`, wired into `validate.yml`, because a gate only
+exercised at release time is a gate that fails silently — either always
 republishing, or never.
 
 ## The two outputs of one build
@@ -150,6 +162,32 @@ test that never has two pages proves nothing.
 `data/index.json` is still deployed: it is the machine endpoint for CLI
 consumers and for anyone who wants the whole registry in one document. The
 browser never reads it, and `check-site.py` fails if it does.
+
+### Caching the tiers differently
+
+Sharding only helps if a repeat visitor does not re-fetch the shards, so each
+tier gets its own policy in `site/_headers`, keyed by whether its **URL** says
+anything about its content:
+
+| URL | versioned by | policy |
+|---|---|---|
+| `data/pages/*.json?v=<build>`, `data/details/*`, `avatars/*` | the build id in the query | immutable, 1 year |
+| `hub.js`, `styles.css` | stamped `?v=<build>` by the builder | immutable, 1 year |
+| `index.html`, `data/meta.json`, `data/index.json`, `downloads/*` | nothing — stable URLs | `no-cache` (revalidate) |
+| `assets/*` (fonts) | nothing — fixed names from CSS | `max-age=0, must-revalidate` |
+
+The build id is therefore load-bearing, and `check-site.py` pins its three
+properties: it does **not** move when only `generated_at` or `source.commit`
+moved (otherwise a docs-only commit would bust every cache in the world), and it
+**does** move when the registry data or the page's own code moves. The code half
+matters most: `hub.js` is cached for a year by URL, so an id blind to its bytes
+would let visitors run an old script against new shards — the one failure
+immutable caching cannot recover from.
+
+`_headers` itself is part of that hash, and `build-site.py` lints it: two rules
+setting the same header for one file would have their values joined with a
+comma by Pages, so the build fails instead. `tools/serve-site.py` applies the
+same file locally, which is what makes any of this testable before deployment.
 
 ## What `publish.yml` does, step by step
 
@@ -252,19 +290,24 @@ python tools/ci-pack-all.py --out dist --key .keys/ci/registry.key
 python tools/selftest.py --key .keys/ci/registry.key
 python tools/build-index.py --out dist/index.json --packages dist/
 python tools/check-index.py dist/index.json schema/agent.schema.json
-python tools/build-site.py --index dist/index.json --packages dist/ --out dist/site
+python tools/registry-digest.py --out dist/registry.digest.json --packages dist --key .keys/ci/registry.key
+python tools/build-site.py --index dist/index.json --packages dist --out dist/site --registry-digest dist/registry.digest.json
 python tools/check-site.py --site dist/site
 ```
 
-Then serve it:
+Then serve it with the server that honours `_headers`, so the cache policy is
+part of what you are looking at rather than something only Cloudflare applies:
 
 ```bash
-cd dist/site && python -m http.server 8000
+python tools/serve-site.py --site dist/site --port 8000
 ```
 
 A local run with an ephemeral key marks every package `third-party` in the
 index, because the ephemeral key is not in `trusted-keys.json`. That is the
 correct result — it is exactly what a package signed by an unknown key means.
+
+For the gate, the Cloudflare side, and the failure modes:
+[deployment.md](deployment.md).
 
 ## Open questions
 

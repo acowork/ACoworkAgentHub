@@ -68,37 +68,17 @@ jobs:
       # bytes does not republish". Tested here, on every PR, because a gate that
       # is only exercised in publish.yml is a gate that silently republishes
       # everything (or silently never publishes) until the next release.
-      - name: Publish gate reports identical content as unchanged
-        run: |
-          python tools/registry-digest.py --out .ci/digest.json --packages dist --key .keys/ci/registry.key
-          rc=0
-          python tools/registry-digest.py --compare .ci/digest.json \
-              --packages dist --key .keys/ci/registry.key || rc=$?
-          if [ "$rc" -ne 2 ]; then
-            echo "::error::the gate said 'publish required' for an unchanged registry (exit $rc)"
-            exit 1
-          fi
-          # And the reverse: touching one file must name exactly that agent.
-          printf '\n' >> agents/official/product-manager/prompts/system.md
-          python tools/registry-digest.py --compare .ci/digest.json \
-              --packages dist --key .keys/ci/registry.key --changed-out .ci/changed.txt
-          git checkout agents/official/product-manager/prompts/system.md
-          if [ "$(cat .ci/changed.txt)" != "com.acowork.product-manager" ]; then
-            echo "::error::the gate did not identify the one changed agent: $(cat .ci/changed.txt)"
-            exit 1
-          fi
-
-      # Reuse is validated against the source bytes, not against a list, so a
-      # changed list that lies cannot publish a stale package.
-      - name: Unchanged agents reuse their published package
-        run: |
-          : > .ci/none.txt
-          out=$(python tools/ci-pack-all.py --out .ci/reused --key .keys/ci/registry.key \
-                 --reuse dist --changed .ci/none.txt | tail -1)
-          case "$out" in
-            *"0 packed, 8 reused"*) echo "$out" ;;
-            *) echo "::error::expected full reuse, got: $out"; exit 1 ;;
-          esac
+      # The incremental behaviour of the publish pipeline: nothing repacked when
+      # nothing changed, the changed list cannot lie its way into a stale
+      # package, a key rotation forces re-signing, a builder-only change is
+      # attributed correctly, and line endings are not content.
+      #
+      # This replaces two inline steps that mutated the checked-out tree with
+      # `printf >>` and restored it with `git checkout`. That pattern is how an
+      # uncommitted fix gets silently discarded by a test run, and it hardcoded
+      # the agent count and one agent id, so it broke on every addition.
+      - name: Publish pipeline self test (incremental packing and the gate)
+        run: python tools/selftest-publish.py
 
       - name: Tamper-detection self test
         run: python tools/selftest.py --key .keys/ci/registry.key

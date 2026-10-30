@@ -179,6 +179,7 @@ signature requirements and review criteria.
 - [docs/package-contract.md](docs/package-contract.md) — what goes in manifest.toml vs hub.json, and why
 - [docs/catalog.md](docs/catalog.md) — categories, labels, search and facet rules
 - [docs/publishing.md](docs/publishing.md) — how a submission becomes a published entry
+- [docs/deployment.md](docs/deployment.md) — running the pipeline locally, and how the site reaches Cloudflare Pages
 - [docs/naming.md](docs/naming.md) — directory, id and publisher naming rules
 - [docs/trust-model.md](docs/trust-model.md) — what the signature means and does not mean
 

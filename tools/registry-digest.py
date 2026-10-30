@@ -37,9 +37,11 @@ Usage
     python tools/registry-digest.py --compare baseline/registry.digest.json \
         --changed-out .ci/changed.txt
 
-`--changed-out` receives one agent_id per line, containing exactly the agents
-whose source tree or version differs from the baseline. An empty file means
-"reuse every published package". A missing baseline means "full build".
+`--changed-out` receives one agent_id per line: the packages to rebuild. An
+empty file means "reuse every published package", which is only ever true when
+the agents themselves changed. A builder or signer change lists **every** agent,
+because published packages made by different code or a different key are not
+reusable. A missing baseline means "full build".
 """
 
 from __future__ import annotations
@@ -76,6 +78,21 @@ def sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def sha256_text(data: bytes) -> str:
+    """Hash a text file with line endings canonicalised to LF.
+
+    `.gitattributes` normalises these files to LF on checkout, so a working copy
+    edited on Windows (CRLF) and a CI checkout (LF) contain the same program in
+    different bytes. Only the *digest input* is normalised here: without it the
+    builder digest — and therefore the publish gate — would flip on every
+    platform switch and republish byte-identical packages.
+
+    Package content is still hashed byte-exact by pack.collect_files, because
+    those bytes ship inside the .agent file.
+    """
+    return sha256_bytes(data.replace(b"\r\n", b"\n").replace(b"\r", b"\n"))
+
+
 def agent_dirs(agents_root: Path) -> list[Path]:
     """Every agent package directory in the hub, in a deterministic order."""
     if not agents_root.is_dir():
@@ -108,7 +125,7 @@ def builder_digest() -> tuple[str, dict[str, str]]:
         path = REPO_ROOT / rel
         if not path.is_file():
             raise SystemExit(f"[registry-digest] builder input {rel} is missing")
-        files[rel] = sha256_bytes(path.read_bytes())
+        files[rel] = sha256_text(path.read_bytes())
     ordered = "\n".join(f"{rel}:{files[rel]}" for rel in BUILDER_FILES)
     return sha256_bytes(ordered.encode("utf-8")), files
 
@@ -219,6 +236,17 @@ def compare(baseline_path: Path, current: dict) -> tuple[list[str], list[str]]:
             changed.append(agent_id)
     if changed:
         reasons.append(f"{len(changed)} agent(s) changed content or version")
+
+    # An envelope change (builder or signer) means every published package was
+    # produced by code or a key that is no longer current. Reusing them would
+    # leave the registry holding two generations of package forever: a builder
+    # that starts emitting a new section would never reach the agents whose
+    # data did not change. So the whole set is rebuilt — rare, bounded, and the
+    # only way "published bytes come from this builder" stays true.
+    envelope = any(r.startswith("builder changed") or r.startswith("signer rotated")
+                   for r in reasons)
+    if envelope:
+        return sorted(current["agents"]), reasons
     return sorted(changed), reasons
 
 

@@ -36,6 +36,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -166,6 +167,57 @@ def write_data_layer(doc: dict, entries: list[dict], out_dir: Path, build_id: st
     return meta
 
 
+def compute_build_id(index_path: Path, site_dir: Path) -> str:
+    """Content identity of this site build: registry data *and* page code.
+
+    Two properties matter, and a naive hash of index.json gets both wrong:
+
+    * a rebuild of unchanged content must yield the same id, otherwise every
+      deploy busts the immutable cache of every shard, script and stylesheet
+      and returning visitors re-download the world. `generated_at` changes on
+      every run and `source.commit` changes on every commit — including commits
+      that touch only docs — so both are excluded: they are provenance, not
+      content. Any real change shows up in the entries themselves (version,
+      sha256, labels, sizes).
+    * a change to hub.js or styles.css must yield a *different* id, otherwise
+      visitors pinned to an old cached script would run it against new data —
+      and no amount of cache-busting on the data side fixes that.
+
+    So the id covers the registry minus its build metadata plus the bytes of
+    the files the page ships.
+    """
+    doc = json.loads(index_path.read_text(encoding="utf-8"))
+    provenance = ("generated_at", "source")
+    for key in provenance:
+        doc.pop(key, None)
+    h = hashlib.sha256()
+    h.update(json.dumps(doc, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+    for name in ("index.html", "hub.js", "styles.css", "_headers"):
+        f = site_dir / name
+        if f.is_file():
+            # Line endings are canonicalised: `.gitattributes` normalises these
+            # to LF on checkout, so a Windows working copy and a CI checkout run
+            # the same page in different bytes. Hashing raw bytes would make the
+            # id — and therefore every immutable asset URL — platform-dependent.
+            code = f.read_bytes().replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+            h.update(b"\0" + name.encode() + b"\0" + code)
+    return h.hexdigest()[:12]
+
+
+def stamp_asset_versions(html: str, build_id: str) -> str:
+    """Rewrite `?v=<anything>` on same-bundle asset URLs to the build id.
+
+    hub.js and styles.css are cached forever by URL, so their version marker
+    must come from the build, not from a human remembering to bump `?v=1`.
+    A stale script reading new shards is a correctness bug, and an
+    hand-maintained counter is exactly how that bug survives review.
+    """
+    def repl(m: re.Match) -> str:
+        return "%s?v=%s" % (m.group(1), build_id)
+
+    return re.sub(r'(?<!//)([\w./-]+\.(?:js|css))\?v=[^"\'\s]+', repl, html)
+
+
 def agent_avatar_source(agents_dir: Path, entry: dict) -> Path | None:
     """The agent's own avatar file, resolved from its source directory.
 
@@ -190,6 +242,66 @@ def agent_avatar_source(agents_dir: Path, entry: dict) -> Path | None:
     if not declared:
         return None
     return agent_dir / declared
+
+
+def lint_headers(site_root: Path, out_dir: Path) -> list[str]:
+    """Fail if two `_headers` rules match the same deployed file and set the
+    same header name.
+
+    Cloudflare joins the values of every matching rule with a comma, so a
+    duplicated rule silently produces `Cache-Control: no-cache, no-cache` —
+    and a broad rule plus a specific one can produce a self-contradicting
+    value like `no-cache, public, max-age=31536000`. The cache policy is what
+    makes the sharded data layer safe to cache hard, so a silently broken
+    header is a correctness problem, not a cosmetic one.
+
+    The lint runs against the files this build actually produced, so it cannot
+    be satisfied by reasoning about hypothetical URLs.
+    """
+    headers_file = site_root / "_headers"
+    if not headers_file.is_file():
+        return []
+
+    rules_by_path: dict[str, dict[str, list[str]]] = {}
+    path = None
+    for line in headers_file.read_text(encoding="utf-8").splitlines():
+        text = line.rstrip()
+        if not text.strip() or text.lstrip().startswith("#"):
+            continue
+        if text.startswith((" ", "	")):
+            if path is None:
+                continue
+            name, _, value = text.strip().partition(":")
+            rules_by_path[path].setdefault(name.strip(), []).append(value.strip())
+        else:
+            path = text.strip()
+            rules_by_path.setdefault(path, {})
+
+    def matches(pattern: str, url_path: str) -> bool:
+        if "*" in pattern:
+            prefix, _, suffix = pattern.partition("*")
+            return url_path.startswith(prefix) and url_path.endswith(suffix)
+        return url_path == pattern
+
+    problems: list[str] = []
+    for file in sorted(out_dir.rglob("*")):
+        if not file.is_file() or file.name == "_headers":
+            continue
+        url = "/" + file.relative_to(out_dir).as_posix()
+        hit = {pat: hdrs for pat, hdrs in rules_by_path.items() if matches(pat, url)}
+        counts: dict[str, int] = {}
+        for hdrs in hit.values():
+            for name in hdrs:
+                counts[name] = counts.get(name, 0) + 1
+        for name, count in counts.items():
+            if count > 1:
+                values = [f"{pat} -> {v}" for pat, v in
+                          ((p_, h[name][0]) for p_, h in hit.items() if name in h)]
+                problems.append(
+                    f"{url}: `{name}` set by {count} rules ({'; '.join(values)}) — "
+                    "Cloudflare joins them with a comma"
+                )
+    return problems
 
 
 def main() -> int:
@@ -232,8 +344,19 @@ def main() -> int:
         stale = out_dir / name
         if stale.is_dir():
             shutil.rmtree(stale)
-    for name in ("index.html", "hub.js", "styles.css"):
+    # The build id is the hash of the published index, so it changes only when
+    # the registry content changes. Cached URLs therefore stay valid across
+    # deploys that did not change anything — the same property the publish gate
+    # enforces on the packages. It is needed here because the page's own assets
+    # are versioned by it.
+    build_id = compute_build_id(index_path, SITE_DIR)
+
+    for name in ("hub.js", "styles.css"):
         shutil.copy2(SITE_DIR / name, out_dir / name)
+    (out_dir / "index.html").write_text(
+        stamp_asset_versions((SITE_DIR / "index.html").read_text(encoding="utf-8"), build_id),
+        encoding="utf-8",
+    )
     shutil.copytree(SITE_DIR / "assets", out_dir / "assets", dirs_exist_ok=True)
 
     # Cloudflare Pages reads `_headers` from the deployed root to set the
@@ -273,11 +396,6 @@ def main() -> int:
         shutil.copy2(src, out_dir / avatar)
 
     # 5. the sharded data layer: meta -> pages -> details
-    #    The build id is the hash of the published index, so it changes only
-    #    when the registry content changes. Cached URLs therefore stay valid
-    #    across deploys that did not change anything — which is the same
-    #    property the publish gate enforces on the packages.
-    build_id = hashlib.sha256(index_path.read_bytes()).hexdigest()[:12]
     digest_value = None
     if args.registry_digest:
         digest_path = Path(args.registry_digest)
@@ -292,6 +410,13 @@ def main() -> int:
                 file=sys.stderr,
             )
     meta = write_data_layer(doc, entries, out_dir, build_id, digest_value)
+
+    # 6. the cache policy, checked against the files that were just written
+    problems = lint_headers(SITE_DIR, out_dir)
+    if problems:
+        for problem in problems:
+            print(f"[build-site] ERROR: {problem}", file=sys.stderr)
+        fail("_headers rules collide — see docs/publishing.md#how-the-page-loads-its-data")
 
     total = sum(e["package"]["size_bytes"] for e in entries)
     print(
