@@ -55,6 +55,9 @@
   var countEl = $('ah-count-total');
   var moreBtn = $('ah-more');
   var detailEl = $('ah-detail');
+  var modalEl = $('ah-modal');
+  var backdropEl = $('ah-modal-backdrop');
+  var lastFocused = null;
 
   /* ---------- tiny DOM helpers ---------- */
 
@@ -231,13 +234,6 @@
     }
   }
 
-  function signatureBadge(a) {
-    var status = sigStatus(a);
-    if (status === 'official-channel') return el('span', 'ah-chip ah-chip--ok', 'official channel');
-    if (status === 'third-party') return el('span', 'ah-chip', 'third-party');
-    return el('span', 'ah-chip ah-chip--warn', 'unsigned');
-  }
-
   function renderCard(a) {
     var card = el('article', 'ah-card');
     card.tabIndex = 0;
@@ -262,27 +258,23 @@
     var meta2 = add(card, 'div', 'ah-card__meta');
     var pub = (a.publisher && a.publisher.display_name) || a.author || 'unknown';
     add(meta2, 'span', 'ah-chip ah-chip--pub', 'by ' + pub);
-    meta2.appendChild(signatureBadge(a));
     if (a.license) add(meta2, 'span', 'ah-chip', a.license);
+    // The signing channel is not on the card: eight agents in a row all saying
+    // "official channel" is noise, and the browser's own trust is not what a
+    // badge grants. It stays in the detail panel and in the channel filter.
 
-    var perms = a.permissions || [];
-    if (perms.length) {
-      var pl = add(card, 'div', 'ah-card__perms');
-      add(pl, 'span', 'ah-card__perms-label', 'Permissions');
-      perms.forEach(function (p) {
-        var cls = 'ah-chip ah-chip--perm';
-        if ((a.high_risk_permissions || []).indexOf(p) !== -1) cls += ' ah-chip--risk';
-        add(pl, 'span', cls, p);
-      });
-    }
+    // Permissions are deliberately NOT on the card. The list is long, it is
+    // the same for most agents, and it pushed the card to twice the height of
+    // what a browsing card should be. It is one of the first things shown in
+    // the detail panel, where there is room to read it.
 
+    // Capabilities are a single line of chips, not a bulleted list. A card is
+    // scanned, not read: the full list belongs in the detail panel.
     var caps = a.capability_keys || [];
     if (caps.length) {
       var cl = add(card, 'div', 'ah-card__caps');
-      add(cl, 'span', 'ah-card__perms-label', 'Capabilities');
-      var list = add(cl, 'ul');
-      caps.slice(0, 5).forEach(function (c) { add(list, 'li', null, prettyKey(c)); });
-      if (caps.length > 5) add(list, 'li', 'ah-card__more', '+' + (caps.length - 5) + ' more');
+      caps.slice(0, 2).forEach(function (c) { add(cl, 'span', 'ah-chip ah-chip--cap', prettyKey(c)); });
+      if (caps.length > 2) add(cl, 'span', 'ah-card__more', '+' + (caps.length - 2));
     }
 
     var foot = add(card, 'div', 'ah-card__foot');
@@ -358,7 +350,13 @@
   /* ---------- detail panel ---------- */
 
   function openDetail(agentId) {
-    detailEl.hidden = false;
+    // The modal opens immediately, with a loading line inside it, so the click
+    // always produces something in the middle of the screen. Waiting for the
+    // detail fetch to resolve before showing anything is what made the old
+    // version feel broken.
+    modalEl.hidden = false;
+    document.body.classList.add('ah-modal-open');
+    lastFocused = document.activeElement;
     detailEl.innerHTML = '';
     detailEl.setAttribute('aria-busy', 'true');
     add(detailEl, 'p', 'ah-detail__loading', 'Loading\u2026');
@@ -458,8 +456,10 @@
   }
 
   function closeDetail() {
-    detailEl.hidden = true;
+    modalEl.hidden = true;
+    document.body.classList.remove('ah-modal-open');
     detailEl.innerHTML = '';
+    if (lastFocused && lastFocused.focus) lastFocused.focus();
   }
 
   /* ---------- facets ---------- */
@@ -606,9 +606,12 @@
       render();
     }
   });
+  // Escape closes the modal, clicking the backdrop closes it, and the page
+  // behind it must not scroll while it is open.
   document.addEventListener('keydown', function (ev) {
-    if (ev.key === 'Escape' && !detailEl.hidden) closeDetail();
+    if (ev.key === 'Escape' && !modalEl.hidden) closeDetail();
   });
+  backdropEl.addEventListener('click', closeDetail);
 
   boot();
 })();

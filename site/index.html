@@ -43,7 +43,6 @@
 
     <section class="ah-hero">
       <div class="container">
-        <p class="ah-kicker"><a href="https://acowork.ai">&larr; ACowork</a></p>
         <h1>Agent Hub</h1>
         <p class="ah-lead">
           Every agent below is a signed <code class="inline">.agent</code> package. Download one, import it
@@ -51,15 +50,8 @@
         </p>
         <ul class="ah-facts" aria-label="What this page is">
           <li><strong id="ah-count-total">&mdash;</strong> agents published</li>
-          <li>Each card shows the <strong>permissions</strong> the agent asks for &mdash; read them before you install</li>
-          <li>Source lives in <a href="https://github.com/acowork/ACoworkAgentHub" target="_blank" rel="noopener"><code class="inline">acowork/ACoworkAgentHub</code></a></li>
+          <li>Open an agent to see the <strong>permissions</strong> it asks for &mdash; read them before you install</li>
         </ul>
-        <p class="ah-alpha">
-          ACowork is in <strong>alpha</strong>. This is a registry, not a store &mdash; there are no reviews, no
-          install counts and no one-click install. A signature here proves the package was not altered and
-          whether it came through the official channel; it is not an endorsement of the agent.
-          <a href="https://github.com/acowork/ACoworkAgentHub/blob/main/docs/trust-model.md" target="_blank" rel="noopener">How trust works</a>.
-        </p>
       </div>
     </section>
 
@@ -104,9 +96,6 @@
         <button class="btn btn--ghost ah-more" id="ah-more" type="button" hidden>
           Load more agents
         </button>
-
-        <aside class="ah-detail" id="ah-detail" role="dialog" aria-modal="false"
-               aria-label="Agent details" hidden></aside>
 
         <div class="ah-skeleton" id="ah-skeleton" aria-hidden="true">
           <div class="ah-card ah-card--skeleton"></div>
@@ -153,6 +142,16 @@
     </section>
 
   </main>
+
+  <!-- The agent detail is a modal, not a section that appears under the
+       list. A card that opens something below the fold looks like a click
+       that did nothing, and the thing the user asked for is off-screen. -->
+  <div class="ah-modal" id="ah-modal" hidden>
+    <div class="ah-modal__backdrop" id="ah-modal-backdrop"></div>
+    <div class="ah-modal__panel" role="dialog" aria-modal="true" aria-label="Agent details">
+      <aside class="ah-detail" id="ah-detail"></aside>
+    </div>
+  </div>
 
   <footer class="footer">
     <div class="container">

@@ -177,6 +177,33 @@ def check_real(page, base: str, expected: int, errors: list[str]) -> None:
     if broken:
         errors.append(f"{broken} image(s) failed to load")
 
+    # The card is a scannable summary: it must NOT carry the heavy fields.
+    # Permissions and the signing channel live in the detail panel, because a
+    # card that lists them is twice as tall and says the same thing eight
+    # times in a row. These assertions pin that decision so nobody re-adds it.
+    if page.locator(".ah-card__perms").count():
+        errors.append("cards show a permissions block - it belongs in the detail panel")
+    card_chips = page.evaluate(
+        "() => [...document.querySelectorAll('.ah-card .ah-chip')]"
+        ".map(e => e.textContent.trim().toLowerCase())"
+    )
+    if any("official" in c or "third-party" in c for c in card_chips):
+        errors.append("cards show a signing-channel badge - it belongs in the detail panel")
+    if page.locator(".ah-alpha").count():
+        errors.append("the alpha disclaimer is back on the page")
+
+    # The detail is a modal, not a block that appears under the grid. A card
+    # that opens something below the fold reads as a click that did nothing.
+    if not page.locator("#ah-modal").count():
+        errors.append("the detail modal container is missing")
+    elif page.locator("#ah-modal").get_attribute("hidden") is None:
+        errors.append("the detail modal is open before anything was clicked")
+    # `hidden` present = closed, absent = open.
+    if not page.locator("#ah-modal-backdrop").count():
+        errors.append("the modal has no backdrop - it does not read as a layer on top")
+    if page.locator(".ah-kicker").count():
+        errors.append("the 'back to ACowork' kicker is back; the nav already links home")
+
     # The card is a button: opening the detail panel must fetch the heavy
     # fields, which the card deliberately does not carry.
     page.locator(".ah-card").first.click()
@@ -185,6 +212,17 @@ def check_real(page, base: str, expected: int, errors: list[str]) -> None:
         errors.append("clicking a card did not open the detail panel")
     if page.locator(".ah-detail__sha").count() == 0:
         errors.append("the detail panel shows no sha256/signer — heavy fields did not load")
+    if page.locator("#ah-modal").get_attribute("hidden") is not None:
+        errors.append("the detail modal did not open")
+
+    # Escape must close it, and the page behind must not stay locked.
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(200)
+    if page.locator("#ah-modal").get_attribute("hidden") is None:
+        errors.append("Escape did not close the detail modal")
+
+    if "ah-modal-open" in (page.evaluate("() => document.body.className") or ""):
+        errors.append("the page stayed scroll-locked after the modal closed")
 
 
 def check_sharding(page, base: str, meta: dict, errors: list[str]) -> None:
