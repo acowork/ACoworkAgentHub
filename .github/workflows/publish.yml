@@ -119,38 +119,15 @@ jobs:
 
       - name: Decide what has to be published
         id: gate
-        run: |
-          mkdir -p .ci
-          python tools/registry-digest.py --out .ci/current.digest.json \
-              --key .keys/registry.key
-          if [ -f .ci/registry.digest.json ]; then
-            python tools/registry-digest.py --compare .ci/registry.digest.json \
-                --key .keys/registry.key --changed-out .ci/changed.txt
-            rc=$?
-          else
-            echo "no baseline digest — full build"
-            rc=0
-          fi
-          if [ "${{ inputs.force }}" = "true" ]; then
-            echo "::notice::force requested — ignoring the content gate"
-            rc=0
-            rm -f .ci/changed.txt   # no list = rebuild every agent
-          fi
-          if [ "$rc" -eq 2 ]; then
-            publish=false
-          else
-            publish=true
-          fi
-          echo "publish=$publish" >> "$GITHUB_OUTPUT"
-          echo "changed_count=$( [ -f .ci/changed.txt ] && wc -l < .ci/changed.txt || echo all )" >> "$GITHUB_OUTPUT"
-
-          # The site is deployed only when its content or its code moved.
-          deployed="$(cat .ci/deployed-commit 2>/dev/null || echo none)"
-          if [ "$deployed" = "${GITHUB_SHA}" ]; then
-            echo "deploy=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "deploy=true" >> "$GITHUB_OUTPUT"
-          fi
+        run: bash tools/gate-step.sh
+        env:
+          GITHUB_OUTPUT: ${{ github.output }}
+          FORCE: ${{ inputs.force }}
+          GITHUB_SHA: ${{ github.sha }}
+          # The registry tools need Python 3.11+ (tomllib). `setup-python`
+          # put it on PATH, but the script is told which one to use so it
+          # cannot pick up a different interpreter from the runner.
+          PYTHON: python
 
       - name: Pack and sign (only what changed)
         if: steps.gate.outputs.publish == 'true'

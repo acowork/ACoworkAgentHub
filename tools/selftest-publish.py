@@ -130,6 +130,107 @@ def make_fixture(dest: Path) -> Path:
     return dest
 
 
+def _shell_path(path: str) -> str:
+    """Spell `path` the way the local bash can execute it.
+
+    On Windows the shell that runs these scripts is Git Bash, which mounts the
+    system drive at `/c` and cannot execute a `C:/...` path. `cygpath` is the
+    tool that knows the answer; on a POSIX system the path is already right.
+    """
+    if os.name != "nt":
+        return path
+    try:
+        out = subprocess.run(
+            ["cygpath", "-u", path], capture_output=True, text=True,
+            encoding="utf-8", errors="replace",
+        )
+        if out.returncode == 0 and out.stdout.strip():
+            return out.stdout.strip()
+    except (OSError, FileNotFoundError):
+        pass
+    # No cygpath: guess the mount point from the drive letter.
+    p = Path(path)
+    if len(p.drive) >= 2 and p.drive[1] == ":":
+        return "/" + p.drive[0].lower() + p.as_posix()[2:]
+    return p.as_posix()
+
+
+def _bash_for(root: Path) -> str:
+    """A bash that can see the same filesystem the fixture lives on.
+
+    On Windows there are two `bash` programs and they do not agree:
+
+    * `C:\\Program Files\\Git\\usr\\bin\\bash.exe` (Git Bash) sees the Windows
+      filesystem, with the system drive mounted at `/c`.
+    * `C:\\Windows\\System32\\bash.exe` is the WSL launcher. It sees the
+      *Linux* filesystem, so `/c/...` does not exist and every path in the
+      fixture is missing.
+
+    `subprocess` resolves `bash` through PATH, and on a machine with WSL
+    installed that can be the WSL one - which is why a script that works in
+    a terminal failed under the test. The interpreter is chosen by asking
+    each candidate whether it can see the fixture, rather than by guessing.
+    """
+    candidates: list[str] = []
+    git_bash = Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Git" / "usr" / "bin" / "bash.exe"
+    if git_bash.is_file():
+        candidates.append(str(git_bash))
+    for name in ("bash", "sh"):
+        found = shutil.which(name)
+        if found:
+            candidates.append(found)
+
+    for cand in candidates:
+        try:
+            probe = subprocess.run(
+                [cand, "-c", "cd . && pwd >/dev/null && test -d tools"],
+                capture_output=True, text=True, cwd=str(root),
+            )
+        except (OSError, FileNotFoundError):
+            continue
+        if probe.returncode == 0:
+            return cand
+    raise SystemExit(
+        "no bash on this machine can see the fixture directory - the test "
+        "cannot run the gate script"
+    )
+
+
+def run_bash(root: Path, script: str, *args: str,
+             env: dict | None = None) -> subprocess.CompletedProcess:
+    """Run a shell script inside the fixture, the way GitHub runs it.
+
+    GitHub executes every `run:` block as `bash -e {0}`, so a script that
+    returns a non-zero exit code aborts there and the lines after it never
+    run. That is not a detail of the harness: it is how the workflow behaves,
+    and a test that invokes the underlying tool directly cannot see it.
+
+    The script is invoked by its path *relative to the fixture root*, which is
+    the working directory. An absolute path would have to be spelled the way
+    the local bash understands it - `C:/...` for the Windows one, `/home/...`
+    for the Linux one - and that spelling differs per platform. A relative
+    path is the same string everywhere.
+    """
+    run_env = dict(os.environ)
+    run_env.update(env or {})
+    # The script needs a Python interpreter, and the one on the shell's PATH is
+    # not necessarily the one running this test - on Windows there often is no
+    # `python` on the shell's PATH at all. The interpreter is handed over in a
+    # file rather than an environment variable, because environment variables
+    # do not reliably cross the Windows/Unix boundary a shell script sits on.
+    run_env.pop("PYTHON", None)
+    bash = _bash_for(root)
+    return subprocess.run(
+        [bash, "-e", f"tools/{script}", *args],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        cwd=str(root),
+        env=run_env,
+    )
+
+
 def det_dir(root: Path, label: str) -> Path:
     """The directory holding the determinism build for `label`.
 
@@ -477,6 +578,98 @@ def main() -> int:
     if not case_sensitive:
         print("  NOTE  this filesystem ignores case, so the assertions above are the "
               "only thing standing between a typo and a red CI run")
+
+    # ---- 13. the gate script, run the way GitHub runs it ---------------
+    # `registry-digest.py --compare` exits 2 to mean "nothing to publish".
+    # GitHub runs every `run:` block under `bash -e`, which aborts at the
+    # first non-zero exit, so the workflow used to die with exit 2 on every
+    # push that did not change the registry - while this test, which called
+    # the Python tool directly, stayed green the whole time.
+    #
+    # The fix is to run the real script, under the real shell, with the real
+    # flags. A test that measures a different thing from the one that ships
+    # is how both this bug and the `detA` bug got in.
+    print("\n13) the publish gate, run under 'bash -e' the way GitHub runs it")
+    gate_out = root / ".selftest" / "gate_output.txt"
+    # The script reads the baseline from .ci/registry.digest.json - the same
+    # place the workflow puts it.
+    baseline = root / ".ci" / "registry.digest.json"
+    (root / ".ci").mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(dg0, baseline)
+    (root / ".keys" / "registry.key").parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(key_a, root / ".keys" / "registry.key")
+    # Hand the script the interpreter that is running this test. It is passed
+    # in a file, not an environment variable, because environment variables do
+    # not reliably cross the Windows/Unix boundary a shell script sits on.
+    #
+    # The path is written the way the shell that will run it can execute it:
+    # Git Bash resolves `C:/x` and `/c/x` differently, and only one of them
+    # works on a given machine. `bash -c 'cygpath ...'` is the shell's own
+    # answer to that question.
+    (root / ".ci").mkdir(parents=True, exist_ok=True)
+    py_path = _shell_path(sys.executable)
+    (root / ".ci" / "python-path").write_text(py_path, encoding="utf-8")
+
+    # (a) nothing changed -> the gate must succeed and say publish=false.
+    gate_out.write_text("", encoding="utf-8")
+    r = run_bash(root, "gate-step.sh", env={"GITHUB_OUTPUT": str(gate_out)})
+    body = r.stdout + r.stderr
+    check(r.returncode == 0,
+          "an unchanged tree does NOT fail the workflow",
+          body[-400:])
+    check("publish=false" in gate_out.read_text(encoding="utf-8"),
+          "and it reports publish=false", body[-300:])
+
+    # (b) something changed -> the gate must succeed and say publish=true.
+    target_file.write_bytes(original + b"\n")
+    gate_out.write_text("", encoding="utf-8")
+    r = run_bash(root, "gate-step.sh", env={"GITHUB_OUTPUT": str(gate_out)})
+    body = r.stdout + r.stderr
+    check(r.returncode == 0, "a changed tree does not fail the workflow", body[-400:])
+    check("publish=true" in gate_out.read_text(encoding="utf-8"),
+          "and it reports publish=true", body[-300:])
+    target_file.write_bytes(original)
+
+    # (c) force -> the gate is overridden and everything is republished.
+    gate_out.write_text("", encoding="utf-8")
+    r = run_bash(root, "gate-step.sh",
+                 env={"GITHUB_OUTPUT": str(gate_out), "FORCE": "true"})
+    body = r.stdout + r.stderr
+    check(r.returncode == 0, "force does not fail the workflow", body[-400:])
+    check("publish=true" in gate_out.read_text(encoding="utf-8"),
+          "force ignores the content gate and republishes", body[-300:])
+
+    # (d) no baseline at all -> a full build, not a failure.
+    baseline.unlink(missing_ok=True)
+    gate_out.write_text("", encoding="utf-8")
+    r = run_bash(root, "gate-step.sh", env={"GITHUB_OUTPUT": str(gate_out)})
+    body = r.stdout + r.stderr
+    check(r.returncode == 0, "a missing baseline does not fail the workflow", body[-400:])
+    check("publish=true" in gate_out.read_text(encoding="utf-8"),
+          "a missing baseline means a full build", body[-300:])
+
+    # (e) the deploy decision. The site is deployed only when its content or
+    # its code moved, so the commit that was deployed last decides.
+    baseline.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(dg0, baseline)
+    deployed = root / ".ci" / "deployed-commit"
+
+    deployed.write_text("some-other-commit\n", encoding="utf-8")
+    gate_out.write_text("", encoding="utf-8")
+    r = run_bash(root, "gate-step.sh",
+                 env={"GITHUB_OUTPUT": str(gate_out), "GITHUB_SHA": "abc123"})
+    body = r.stdout + r.stderr
+    check("deploy=true" in gate_out.read_text(encoding="utf-8"),
+          "a new commit means the site is deployed", body[-300:])
+
+    deployed.write_text("abc123\n", encoding="utf-8")
+    gate_out.write_text("", encoding="utf-8")
+    r = run_bash(root, "gate-step.sh",
+                 env={"GITHUB_OUTPUT": str(gate_out), "GITHUB_SHA": "abc123"})
+    body = r.stdout + r.stderr
+    check("deploy=false" in gate_out.read_text(encoding="utf-8"),
+          "the same commit means the site is not deployed again", body[-300:])
+    deployed.unlink(missing_ok=True)
 
     if not args.keep:
         shutil.rmtree(work, ignore_errors=True)

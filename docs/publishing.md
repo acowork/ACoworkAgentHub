@@ -117,6 +117,40 @@ Two defences, because one is not enough:
 A CI failure that a local run cannot reproduce is not a flake. It is a
 difference between the two machines, and the difference is usually a filename.
 
+## The gate's answer is an exit code, and `bash -e` is watching
+
+`registry-digest.py --compare` exits **2** for "nothing to publish" and **0**
+for "publish required". The workflow branches on that number.
+
+GitHub runs every `run:` block as `bash -e {0}`. Under `-e`, the shell aborts
+at the first non-zero exit, so this never worked:
+
+```bash
+python tools/registry-digest.py --compare ...   # exits 2
+rc=$?                                             # never reached
+```
+
+The workflow died with exit 2 on **every push that did not change the
+registry** — which is most pushes, and every push that only touches the site
+or the docs. The gate had printed the right answer
+(`publish NOT NEEDED`) immediately before dying.
+
+Two things had to change, and the second one is the one that matters:
+
+- **the exit code is captured where it is produced**, with `set +e` around
+  the call. "Nothing to publish" is a normal answer, not a crash.
+- **the gate lives in `tools/gate-step.sh`**, and the self test runs *that
+  file* under `bash -e` — the same shell, the same flags, the same exit
+  codes.
+
+The second point is the lesson. `selftest-publish.py` used to call
+`registry-digest.py` directly, so it saw a clean exit code and never saw the
+`bash -e` that GitHub applies. The test was green and the pipeline was
+broken. That is the same mistake as the `detA` bug: **a test that measures a
+different thing from the one that ships**. The rule this repo now follows is
+that anything the workflow runs is run by the test the same way — the real
+script, the real shell, the real flags.
+
 ## The two outputs of one build
 
 `publish.yml` produces two things from **one** run:
@@ -333,6 +367,17 @@ python tools/registry-digest.py --out dist/registry.digest.json --packages dist 
 python tools/build-site.py --index dist/index.json --packages dist --out dist/site --registry-digest dist/registry.digest.json
 python tools/check-site.py --site dist/site
 ```
+
+And the gate, exactly as `publish.yml` runs it:
+
+```bash
+GITHUB_OUTPUT=/tmp/gate.out GITHUB_SHA=$(git rev-parse HEAD) bash -e tools/gate-step.sh
+cat /tmp/gate.out
+```
+
+`publish.yml` calls that script rather than repeating its logic in YAML, so
+the self test can run the same file under the same shell and the same flags.
+A change to the gate is a change to that script, and the test sees it.
 
 Then serve it with the server that honours `_headers`, so the cache policy is
 part of what you are looking at rather than something only Cloudflare applies:
