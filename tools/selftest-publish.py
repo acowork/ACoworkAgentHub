@@ -285,6 +285,7 @@ def main() -> int:
     # nothing in a package may depend on when the build ran.
     print("\n9) deterministic package bytes")
     stamp_mod = _load_tool("buildtime")
+    signing_mod = _load_tool("signing")
     epoch_a, epoch_b = 1_700_000_000, 1_700_000_001
     det: dict[str, dict[str, bytes]] = {}
     for label, epoch in (("a", epoch_a), ("b", epoch_a), ("c", epoch_b)):
@@ -333,6 +334,39 @@ def main() -> int:
     check(bool(idx["a"]) and idx["a"] == idx["b"],
           "same epoch -> identical index.json (generated_at is not wall clock)")
     check(idx["a"] != idx["c"], "different epoch -> different index.json")
+
+    # ---- 11. a seed that ends in a whitespace byte ----------------------
+    # The seed is raw bytes. If a random seed happens to end in 0x09, 0x0a,
+    # 0x0d or 0x20, stripping the file turns it into a 31-byte key and the
+    # whole pipeline dies with "expected a 32-byte Ed25519 seed". That is one
+    # seed in twenty, so it failed the CI self test intermittently and looked
+    # like a flake. This case is forced here so it can never be a flake again.
+    print("\n11) a seed whose last byte looks like whitespace")
+    ws_key = root / ".selftest" / "ws.key"
+    ws_key.parent.mkdir(parents=True, exist_ok=True)
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from cryptography.hazmat.primitives import serialization
+    for last in (b"\x09", b"\x0a", b"\x0d", b"\x20", b"\x00"):
+        k = Ed25519PrivateKey.from_private_bytes(bytes(range(31)) + last)
+        ws_key.write_bytes(k.private_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PrivateFormat.Raw,
+            encryption_algorithm=serialization.NoEncryption(),
+        ))
+        try:
+            signing_mod.load_ed25519_private_key(ws_key)
+            ok = True
+            detail = ""
+        except Exception as exc:  # noqa: BLE001
+            ok = False
+            detail = str(exc)
+        check(ok, f"a seed ending in {last!r} loads unchanged", detail)
+    # The public key must match, i.e. the bytes really were preserved.
+    ws_key.write_bytes(bytes(range(31)) + b"\x0a")
+    loaded = signing_mod.load_ed25519_private_key(ws_key)
+    expected_pub = Ed25519PrivateKey.from_private_bytes(bytes(range(31)) + b"\x0a").public_key()
+    check(loaded.public_key().public_bytes_raw() == expected_pub.public_bytes_raw(),
+          "the loaded key is the same key, byte for byte")
 
     if not args.keep:
         shutil.rmtree(work, ignore_errors=True)

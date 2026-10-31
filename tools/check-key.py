@@ -46,7 +46,11 @@ def fingerprint_of_bytes(raw: bytes) -> str:
     """Fingerprint of a raw 32-byte seed (or a 64-byte seed+pub pair)."""
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-    raw = raw.strip()
+    # Raw bytes: a seed may legitimately end in a byte that looks like
+    # whitespace, and stripping it would silently produce a different,
+    # unusable key. Only a trailing newline added by a tool is removed.
+    if len(raw) == 33 and raw.endswith(b"\n"):
+        raw = raw[:-1]
     if len(raw) == 64:
         raw = raw[:32]
     if len(raw) != 32:

@@ -344,10 +344,23 @@ def public_key_fingerprint(public_key: bytes) -> str:
 
 
 def load_ed25519_private_key(path: Path):
-    """Load an Ed25519 private key from a raw 32-byte seed file."""
+    """Load an Ed25519 private key from a raw 32-byte seed file.
+
+    The seed is raw bytes, not text: it may legitimately end in a byte that
+    happens to look like whitespace (0x09, 0x0a, 0x0d, 0x20). Stripping the
+    file would silently shorten such a key to 31 bytes and turn it into an
+    unusable one - and because the bytes are random, that happened to roughly
+    one seed in twenty, which made the CI self test fail intermittently.
+
+    Only a trailing newline is removed, and only if the file is longer than
+    the seed: that is the one case where a byte was added by a tool rather
+    than being part of the key.
+    """
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-    raw = path.read_bytes().strip()
+    raw = path.read_bytes()
+    if len(raw) == 33 and raw.endswith(b"\n"):
+        raw = raw[:-1]
     if len(raw) == 64:
         raw = raw[:32]
     if len(raw) != 32:
