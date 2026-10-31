@@ -58,6 +58,14 @@ jobs:
       - name: Validate all agent manifests
         run: python tools/validate.py --check-template --strict
 
+      # A path literal that differs from the real name only in case works on
+      # Windows and macOS and fails on Linux. The publish self test was red in
+      # CI for exactly that reason and green on the developer's machine, which
+      # is the worst combination there is. This step is the inspection that
+      # catches the mistake on any filesystem.
+      - name: Check that every path in the repo is spelled with the exact case
+        run: python tools/check-paths.py
+
       - name: Generate an ephemeral signing key (CI only, never persisted)
         run: python tools/make-ci-key.py --output-dir .keys/ci --ephemeral
 

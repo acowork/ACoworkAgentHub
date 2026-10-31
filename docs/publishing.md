@@ -85,6 +85,38 @@ Every one of these is asserted on every pull request by
 exercised at release time is a gate that fails silently — either always
 republishing, or never.
 
+## Case is part of a path
+
+Windows and macOS treat `detA` and `deta` as the same file. Linux does not.
+
+That is not a curiosity. The publish self test once read `.selftest/detA` while
+creating `.selftest/deta`. It passed on the developer's machine, on every
+developer machine, forever — and failed in CI with
+
+```
+FileNotFoundError: [Errno 2] No such file or directory: '.selftest/detA/...'
+```
+
+which reads like a missing package rather than a typo. The test had been
+green locally for the whole time the bug was live.
+
+Two defences, because one is not enough:
+
+- **the path is built in one place.** `det_dir(root, label)` is the only thing
+  that spells that directory name, so the spelling cannot disagree with
+  itself. Reading it back goes through `exact_child()`, which refuses a name
+  that is not spelled exactly as it is on disk — on every platform, including
+  the ones that would have quietly accepted it.
+- **`tools/check-paths.py` inspects the whole repo.** It extracts the
+  path-like literals from every tracked file and compares each one against the
+  real directory listing, component by component. A case mismatch is an error,
+  never a warning. This catches the mistake in files that have no test at all,
+  and it catches it on a case-insensitive filesystem, which is exactly where
+  these bugs are born.
+
+A CI failure that a local run cannot reproduce is not a flake. It is a
+difference between the two machines, and the difference is usually a filename.
+
 ## The two outputs of one build
 
 `publish.yml` produces two things from **one** run:
@@ -291,8 +323,10 @@ owns them".
 python tools/make-ci-key.py --output-dir .keys/ci --ephemeral
 
 python tools/validate.py --check-template --strict
+python tools/check-paths.py
 python tools/ci-pack-all.py --out dist --key .keys/ci/registry.key
 python tools/selftest.py --key .keys/ci/registry.key
+python tools/selftest-publish.py
 python tools/build-index.py --out dist/index.json --packages dist/
 python tools/check-index.py dist/index.json schema/agent.schema.json
 python tools/registry-digest.py --out dist/registry.digest.json --packages dist --key .keys/ci/registry.key

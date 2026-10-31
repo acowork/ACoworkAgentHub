@@ -45,6 +45,59 @@ def check(cond: bool, label: str, detail: str = "") -> bool:
     return cond
 
 
+def exact_child(parent: Path, name: str) -> Path:
+    """Resolve `name` inside `parent`, requiring an *exact* case match.
+
+    Windows and macOS resolve `detA` to `deta` silently; Linux does not. A
+    path that is spelled with the wrong case therefore passes on the developer's
+    machine and fails in CI, and the failure reads like a missing file rather
+    than like a typo. This helper refuses the wrong spelling everywhere, so
+    the mistake fails the same way on every platform.
+
+    It also refuses a name that does not exist at all, which is the ordinary
+    case this was written for: a test pointing at a path nobody creates.
+    """
+    try:
+        entries = os.listdir(parent)
+    except FileNotFoundError:
+        raise AssertionError(f"{parent} does not exist") from None
+    if name not in entries:
+        close = sorted(e for e in entries if e.lower() == name.lower())
+        hint = f" (case-insensitive match: {close})" if close else ""
+        raise AssertionError(f"{parent / name} does not exist{hint}")
+    return parent / name
+
+
+def filesystem_is_case_sensitive(root: Path) -> bool:
+    """Can this filesystem hold two files whose names differ only in case?
+
+    If it cannot, a case bug in a path literal is invisible here and can only
+    be caught in CI - which is why the paths in this file are resolved through
+    `exact_child` rather than trusted.
+
+    The probe writes two files that differ only in case and then reads one of
+    them back: on a case-insensitive filesystem the second write overwrites
+    the first and the content changes, on a case-sensitive one it does not.
+    """
+    probe = root / ".selftest" / "CaseProbe"
+    probe.parent.mkdir(parents=True, exist_ok=True)
+    lower = probe.with_name("caseprobe")
+    try:
+        probe.write_text("upper", encoding="utf-8")
+        lower.write_text("lower", encoding="utf-8")
+        # If reading the upper-case name gives back the lower-case content,
+        # both names are the same file, i.e. the filesystem ignores case.
+        return probe.read_text(encoding="utf-8") != "lower"
+    except OSError:
+        return True
+    finally:
+        for p in (probe, lower):
+            try:
+                p.unlink()
+            except OSError:
+                pass
+
+
 def run_tool(root: Path, tool: str, *args: str,
              env: dict | None = None) -> subprocess.CompletedProcess:
     """Run a tools/ script inside the fixture.
@@ -75,6 +128,21 @@ def make_fixture(dest: Path) -> Path:
 
     shutil.copytree(REPO_ROOT, dest, ignore=ignore)
     return dest
+
+
+def det_dir(root: Path, label: str) -> Path:
+    """The directory holding the determinism build for `label`.
+
+    The name is built here and nowhere else. It used to be spelled out at each
+    use site as `.selftest/det{label}` on one line and `.selftest/detA` on
+    another - "detA" is "deta" with the wrong case, which Windows and macOS
+    resolve silently and Linux does not. The test therefore passed on the
+    developer's machine and failed in CI with a FileNotFoundError that looked
+    like a missing package.
+
+    One function, one spelling, no way to disagree about the name.
+    """
+    return root / ".selftest" / f"det{label}"
 
 
 def _load_tool(name: str):
@@ -289,11 +357,16 @@ def main() -> int:
     epoch_a, epoch_b = 1_700_000_000, 1_700_000_001
     det: dict[str, dict[str, bytes]] = {}
     for label, epoch in (("a", epoch_a), ("b", epoch_a), ("c", epoch_b)):
-        out_dir = root / ".selftest" / f"det{label}"
+        out_dir = det_dir(root, label)
         r = run_tool(root, "ci-pack-all.py", "--out", str(out_dir), "--key", str(key_a),
                      env={"SOURCE_DATE_EPOCH": str(epoch)})
         check(r.returncode == 0, f"determinism build {label} succeeds", (r.stdout + r.stderr)[-300:])
-        det[label] = {f.name: f.read_bytes() for f in sorted(out_dir.glob("*.agent"))}
+        # Read the result back through the exact-case resolver: on a
+        # case-insensitive filesystem a mis-spelled path would silently work,
+        # and the test would keep passing on the developer's machine while
+        # failing on Linux.
+        built = exact_child(out_dir.parent, out_dir.name)
+        det[label] = {f.name: f.read_bytes() for f in sorted(built.glob("*.agent"))}
     check(len(det["a"]) == total, f"determinism build produced all {total} packages",
           f"got {len(det['a'])}")
     check(det["a"] == det["b"], "same epoch twice -> byte-identical packages",
@@ -315,7 +388,8 @@ def main() -> int:
           "entry attributes are explicit, not interpreter defaults")
 
     pack_mod = _load_tool("pack")
-    verified = pack_mod.verify_package(root / ".selftest" / "detA" / sample)
+    det_a = det_dir(root, "a")
+    verified = pack_mod.verify_package(exact_child(det_a.parent, det_a.name) / sample)
     check(verified.get("signing_time") == stamp_mod.utc_stamp(epoch_a),
           "the signed signing_time equals the build stamp",
           f"got {verified.get('signing_time')!r} want {stamp_mod.utc_stamp(epoch_a)!r}")
@@ -327,7 +401,8 @@ def main() -> int:
     idx = {}
     for label, epoch in (("a", epoch_a), ("b", epoch_a), ("c", epoch_b)):
         target = root / ".selftest" / f"index{label}.json"
-        r = run_tool(root, "build-index.py", "--packages", str(root / ".selftest" / "detA"),
+        r = run_tool(root, "build-index.py", "--packages",
+                     str(exact_child(det_a.parent, det_a.name)),
                      "--out", str(target), env={"SOURCE_DATE_EPOCH": str(epoch)})
         check(r.returncode == 0, f"index build {label} succeeds", (r.stdout + r.stderr)[-300:])
         idx[label] = target.read_bytes() if target.exists() else b""
@@ -367,6 +442,41 @@ def main() -> int:
     expected_pub = Ed25519PrivateKey.from_private_bytes(bytes(range(31)) + b"\x0a").public_key()
     check(loaded.public_key().public_bytes_raw() == expected_pub.public_bytes_raw(),
           "the loaded key is the same key, byte for byte")
+
+    # ---- 12. the paths this file names must exist with the exact case ----
+    # This test used to read `.selftest/detA` while creating `.selftest/deta`.
+    # On Windows and macOS that resolves; on Linux it does not, so the test
+    # passed on the developer's machine and failed in CI - which is why the
+    # failure looked like a missing package rather than a typo.
+    print("\n12) path literals resolve with the exact case on every platform")
+    case_sensitive = filesystem_is_case_sensitive(root)
+    print(f"  (this filesystem is {'case-sensitive' if case_sensitive else 'case-insensitive'})")
+    for label in ("a", "b", "c"):
+        d = det_dir(root, label)
+        try:
+            exact_child(d.parent, d.name)
+            ok = True
+            detail = ""
+        except AssertionError as exc:
+            ok = False
+            detail = str(exc)
+        check(ok, f"{d.name} exists with exactly that name", detail)
+    # The resolver itself must refuse a wrong-case name even where the
+    # filesystem would happily accept it. "detA" differs from the real "deta"
+    # only in case, and it is exactly the spelling that used to break CI.
+    real = det_dir(root, "a").name
+    wrong_case = real.swapcase()  # differs from `real` only in case, by construction
+    try:
+        exact_child(det_dir(root, "a").parent, wrong_case)
+        ok = False
+        detail = "the resolver accepted a wrong-case name"
+    except AssertionError as exc:
+        ok = True
+        detail = str(exc)
+    check(ok, f"the resolver rejects '{wrong_case}' where the real name is '{real}'", detail)
+    if not case_sensitive:
+        print("  NOTE  this filesystem ignores case, so the assertions above are the "
+              "only thing standing between a typo and a red CI run")
 
     if not args.keep:
         shutil.rmtree(work, ignore_errors=True)
