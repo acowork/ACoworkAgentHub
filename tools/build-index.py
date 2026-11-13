@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Build index.json for the community agent registry.
 
-Field names and derivation rules deliberately match the main repo's
-dev/common/sync-agent-hub.py, so the website pipeline can consume both
-without special-casing:
+Field names and derivation rules are the published contract: they match
+schema/agent.schema.json, which tools/check-index.py enforces against the
+built file in CI, so a rename here cannot drift from what the site and the
+app read:
 
-    agent_id, version, name, display_name, role, description, author,
+    agent_id, version, name, role, description, author,
     category, category_label, runtime_version, avatar, permissions,
     high_risk_permissions, capabilities, skills, package.{file,size_bytes,sha256}
 
@@ -109,7 +110,7 @@ def build_entry(agent_dir: Path, catalog: dict, packages_dir: Path | None) -> di
         fail(f"cannot parse {manifest_path}: {exc}")
 
     required = [
-        "agent_id", "version", "name", "display_name", "role", "description",
+        "agent_id", "version", "name", "role", "description",
         "author", "runtime_version",
     ]
     missing = [k for k in required if not m.get(k)]
@@ -188,7 +189,11 @@ def build_entry(agent_dir: Path, catalog: dict, packages_dir: Path | None) -> di
         "agent_id": m["agent_id"],
         "version": m["version"],
         "name": m["name"],
-        "display_name": m["display_name"],
+        # The index keeps one display label, and the manifest's `name` is it:
+        # the main repo's AgentManifest has no `display_name` field, so a
+        # manifest that carried one was a hub-side hand-edit that the app
+        # would silently drop on the next re-serialisation (`to_toml`).
+        "display_name": m["name"],
         "role": m["role"],
         "description": m["description"],
         "author": m["author"],

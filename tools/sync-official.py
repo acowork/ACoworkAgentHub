@@ -266,7 +266,7 @@ def build_readme(manifest: dict, pkg: str, source_dir: Path) -> str:
 
     official = manifest.get("author") == PLATFORM_AUTHOR
     L: list[str] = []
-    L.append(f"# {manifest.get('display_name') or manifest.get('name')}")
+    L.append(f"# {manifest['name']}")
     L.append("")
     L.append(manifest.get("description", ""))
     L.append("")
