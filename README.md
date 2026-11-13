@@ -9,22 +9,34 @@ not on a PR branch.
 ## Why this repo exists
 
 The ACowork main repo ships a handful of first-party agents under
-`examples/*/manifest.toml`. Those are the upstream source of truth and they are
+`agents/<name>-agent/`. Those are the upstream source of truth and they are
 built and signed by the main repo's release pipeline.
 
 This repo is the **community counterpart**:
 
-| | Main repo (`examples/*`) | This repo (`agents/<owner>/<name>`) |
+| | Main repo (`agents/<name>-agent/`) | This repo (`agents/<owner>/<name>`) |
 |---|---|---|
 | Authors | ACowork core team | community contributors |
 | Directory | flat, one dir per agent | owner-namespaced, one dir per agent |
 | Provenance | built in-repo, signed by platform keys | built in CI, signed by the channel key |
-| Index | `agents.json` for the vendor site | `index.json` for the community registry |
+| Index | built by the main repo | `index.json` for the community registry |
 
 The platform's own agents are mirrored here under `agents/official/`, keeping
 their original `com.acowork.*` ids, so an installed package stays
 upgradeable instead of forking into a second, differently-named agent. The
 main repo remains their source of truth.
+
+**`agents/official/` is a generated directory.** `tools/sync-official.py`
+writes it, byte for byte, from a named commit in the main repo, and records
+that commit in each package's `hub.json`. Nothing in it is hand-edited: the
+next sync overwrites the edit, and CI fails on it before that happens. A
+content change belongs in the main repo; the sync then opens its own PR here.
+Two checks ask two different questions:
+
+| Check | Question | Effect |
+|---|---|---|
+| `sync-official.py --check` | does the mirror still match the commit it claims? | **blocks** — a hand-edit in the generated area |
+| `sync-official.py --main-ref origin/master --check --report-only` | has master moved past what we publish? | a notice — it must not block an unrelated hub PR |
 
 ## The release loop
 

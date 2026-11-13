@@ -49,11 +49,27 @@ jobs:
             git clone --depth 1 --single-branch --branch master "https://github.com/$MAIN_REPO.git" ../main-repo
           fi
 
-      # The main repo's `examples/*` is the source of truth for the platform
-      # agents mirrored under agents/official/. If the main repo changed,
-      # this mirror is stale and the hub would publish the old packages.
-      - name: Check the official-agent mirror against the main repo
+      # The main repo's `agents/*` is the source of truth for the platform
+      # agents mirrored under agents/official/. Two different questions are
+      # asked here, deliberately, because collapsing them into one makes the
+      # alarm red for every unrelated upstream commit until someone disables
+      # it:
+      #   HARD  does the mirror match the commit it claims to be a copy of?
+      #         (a hand-edit in the generated area; blocks the PR)
+      #   SOFT  has master moved past what the mirror claims?
+      #         (a "go sync" notice; must not block this hub PR)
+      - name: Fetch the commits the mirror claims
+        run: |
+          set -euo pipefail
+          for c in $(python tools/sync-official.py --print-claims); do
+            git -C ../main-repo fetch --depth 1 origin "$c"
+          done
+
+      - name: Check the mirror matches the commit it claims
         run: python tools/sync-official.py --main-repo ../main-repo --check
+
+      - name: Report whether master has moved past the mirror
+        run: python tools/sync-official.py --main-repo ../main-repo --main-ref origin/master --check --report-only
 
       - name: Validate all agent manifests
         run: python tools/validate.py --check-template --strict

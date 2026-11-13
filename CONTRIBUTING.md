@@ -17,6 +17,30 @@ check before merging.
 All of those are CI outputs. `tools/validate.py` fails the build if any of
 them appear in an agent directory.
 
+## Where a package lives, and who may edit it
+
+| Directory | Who writes it | Hand-editable? |
+|---|---|---|
+| `agents/<your-handle>/<name>/` | the author, in a PR | yes |
+| `agents/official/<name>/` | `tools/sync-official.py`, from the ACowork main repo | **no** |
+
+`agents/official/` is a generated mirror of the main repo's `agents/<name>-agent/`
+source trees. Every file in it — including `hub.json`, `README.md` and
+`LICENSE` — is produced by the sync tool, which records the upstream commit
+in `hub.json.mirror.source_commit`. A PR that edits it directly is rejected by
+CI (`sync-official.py --check` compares the mirror against the commit it
+claims, byte for byte), and the next sync overwrites it anyway.
+
+So a change to a platform agent is two commits, in this order:
+
+1. **the main repo**: edit `agents/<name>-agent/` and bump `version` in its
+   `manifest.toml`;
+2. **this repo**: run `tools/sync-official.py --main-repo <path>` (or
+   `dev/common/sync-hub-mirror.sh` from the main repo, which also opens the
+   PR) and merge the generated mirror PR it produces.
+
+Step 2 has no judgement in it. If it does, the change belonged in step 1.
+
 ## Submission flow
 
 1. **Open an issue** (`.github/ISSUE_TEMPLATE/agent_request.yml`) describing

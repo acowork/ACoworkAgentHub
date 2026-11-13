@@ -45,7 +45,7 @@ manifest.toml
 ```
 
 **Order matters.** The first label that maps to a category wins, because
-that is the domain the author led with. The main repo's own examples follow
+that is the domain the author led with. The main repo's own agents follow
 this convention — `engineering`, `product`, `project-management`,
 `quality`, `documents`, `architecture` are all the leading label of their
 agent.
@@ -110,7 +110,7 @@ vocabulary. The main repo accepts any well-formed kebab slug, and so does
 the hub.
 
 The hub ships a `label_categories` map that covers the labels the main
-repo's own examples use, plus the obvious neighbours. It is a starting
+repo's own agents use, plus the obvious neighbours. It is a starting
 point, not a gate: a label that is not in the map still works — it simply
 does not contribute a category, and the agent falls back to `other`.
 
