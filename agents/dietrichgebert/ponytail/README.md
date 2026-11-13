@@ -6,7 +6,6 @@ The best code is the code you never wrote.
 
 ```bash
 acowork install github.ponytail
-```
 
 Or download the signed `.agent` package from the hub and import it in
 the Desktop App. The package is signed by the official channel key —
@@ -41,10 +40,10 @@ Read them before you install:
 - **Agent id**: `github.ponytail`
 - **Version**: `1.0.0`
 - **Author**: DietrichGebert
-- **Source**: [`examples/ponytail-agent`](https://github.com/acowork/ACowork/tree/develop/examples/ponytail-agent) in the ACowork main repo
+- **Source**: [`agents/ponytail-agent`](https://github.com/acowork/ACowork/tree/master/agents/ponytail-agent) in the ACowork main repo
 - **License**: MIT
 
 A community contribution originally shipped with the ACowork main
-repo. The main repo remains the source of truth for the content; this
+repo. The main repo is the source of truth for the content; this
 hub copy is published under the author's own account, so the hub
 never claims it.

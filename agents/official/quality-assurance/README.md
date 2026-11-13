@@ -6,7 +6,6 @@ A quality assurance and quality management agent skilled in quality strategy, te
 
 ```bash
 acowork install com.acowork.quality-assurance
-```
 
 Or download the signed `.agent` package from the hub and import it in
 the Desktop App. The package is signed by the official channel key —
@@ -15,6 +14,7 @@ the app verifies the signature on install.
 ## What it does
 
 - **defect management** — Triage, classify, prioritize, track, and report defects through resolution and verification
+- **project participation** — Claim, publish and submit work in a project: accept a dispatched task, publish its deliverable to the project document tree, record blockers and handoffs as activity, and submit the result
 - **quality strategy** — Define quality objectives, risk-based quality gates, metrics, and continuous improvement plans
 - **regression management** — Plan and maintain regression suites based on risk, change impact, defect history, and automation value
 - **release acceptance** — Assess release readiness using quality gates, known issues, risk acceptance, and go/no-go criteria
@@ -32,6 +32,7 @@ Read them before you install:
 ## Skills
 
 - `defect-management`
+- `project-participation`
 - `quality-strategy`
 - `regression-management`
 - `release-acceptance`
@@ -41,11 +42,14 @@ Read them before you install:
 ## Provenance
 
 - **Agent id**: `com.acowork.quality-assurance`
-- **Version**: `1.0.0`
+- **Version**: `1.1.0`
 - **Author**: ACowork Team
-- **Source**: [`examples/quality-assurance-agent`](https://github.com/acowork/ACowork/tree/develop/examples/quality-assurance-agent) in the ACowork main repo
+- **Source**: [`agents/quality-assurance-agent`](https://github.com/acowork/ACowork/tree/master/agents/quality-assurance-agent) in the ACowork main repo
 - **License**: Apache-2.0
 
-This package is a verbatim copy of the main repo example. The main
-repo remains the source of truth; changes there land here on the
-next sync.
+This package is a verbatim copy of the main repo's agent source,
+produced by `tools/sync-official.py`; `hub.json` names the commit
+it was copied from. The main repo is the source of truth — edit
+it there, then re-run the sync. Changes made directly to this
+directory are overwritten by the next sync and fail CI before
+that happens.

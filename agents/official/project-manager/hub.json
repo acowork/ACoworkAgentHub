@@ -5,5 +5,10 @@
     "homepage": "https://acowork.ai"
   },
   "license": "Apache-2.0",
-  "repository": "https://github.com/acowork/ACowork"
+  "repository": "https://github.com/acowork/ACowork",
+  "mirror": {
+    "source_repo": "acowork/ACowork",
+    "source_path": "agents/project-manager-agent",
+    "source_commit": "8b4a8b48a828a9693d065e3d9a75aeac40cdc6ea"
+  }
 }
