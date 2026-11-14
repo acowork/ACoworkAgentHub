@@ -363,7 +363,9 @@ anything, the gate is broken** and that is a bug worth stopping on.
 | Packages install but read as "unknown signer" | same as above, discovered late | `python tools/check-key.py` |
 | `Deploy the site to Cloudflare Pages` fails | Cloudflare secrets missing | add both; the step fails loudly rather than leaving a stale site |
 | `Interop check` fails | the main repo's parser rejects a hub package | the mirror drifted or a hub-only field leaked into `manifest.toml` — move it to `hub.json` |
-| `Check the official-agent mirror` fails | main repo changed `examples/*` | re-sync: `python tools/sync-official.py --main-repo ../main-repo` |
+| `Check the mirror matches the commit it claims` fails | `agents/official/**` was hand-edited, or `hub.json`'s claim does not match the bytes beside it | re-sync: `python tools/sync-official.py --main-repo ../main-repo`. If the intent was a content change, it belongs in the main repo, not here |
+| `Fetch the commits the mirror claims` fails | a claimed commit is not reachable in the shallow clone of the main repo | the claim names a commit that was never pushed, or GitHub refused a sha fetch — check `hub.json.mirror.source_commit` against `acowork/ACowork` |
+| `Report whether master has moved past the mirror` prints a warning | the main repo has newer agent content than what this hub publishes | run the sync and merge the mirror PR. This is a notice, not a failure — it must never block an unrelated hub PR |
 | Page renders empty in production | shards 404, or `_headers` caching an old `meta.json` | check §2.4 header output |
 | A removed agent still shows on the site | stale shard in an old deployment alias | a fresh deploy replaces the bundle; if it persists, the release prune did not run |
 

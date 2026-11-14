@@ -5,5 +5,10 @@
     "homepage": "https://github.com/DietrichGebert"
   },
   "license": "MIT",
-  "repository": "https://github.com/DietrichGebert/ponytail"
+  "repository": "https://github.com/DietrichGebert/ponytail",
+  "mirror": {
+    "source_repo": "acowork/ACowork",
+    "source_path": "agents/ponytail-agent",
+    "source_commit": "c4dc7488ef4e3565c2cbada5f7b61750fe5c7f1e"
+  }
 }

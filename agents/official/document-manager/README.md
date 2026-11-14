@@ -6,7 +6,6 @@ A document management agent skilled in collecting, organizing, archiving, writin
 
 ```bash
 acowork install com.acowork.document-manager
-```
 
 Or download the signed `.agent` package from the hub and import it in
 the Desktop App. The package is signed by the official channel key —
@@ -43,11 +42,14 @@ Read them before you install:
 ## Provenance
 
 - **Agent id**: `com.acowork.document-manager`
-- **Version**: `1.0.0`
+- **Version**: `1.1.0`
 - **Author**: ACowork Team
-- **Source**: [`examples/document-manager-agent`](https://github.com/acowork/ACowork/tree/develop/examples/document-manager-agent) in the ACowork main repo
+- **Source**: [`agents/document-manager-agent`](https://github.com/acowork/ACowork/tree/master/agents/document-manager-agent) in the ACowork main repo
 - **License**: Apache-2.0
 
-This package is a verbatim copy of the main repo example. The main
-repo remains the source of truth; changes there land here on the
-next sync.
+This package is a verbatim copy of the main repo's agent source,
+produced by `tools/sync-official.py`; `hub.json` names the commit
+it was copied from. The main repo is the source of truth — edit
+it there, then re-run the sync. Changes made directly to this
+directory are overwritten by the next sync and fail CI before
+that happens.

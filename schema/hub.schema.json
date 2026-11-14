@@ -44,6 +44,27 @@
       "format": "uri",
       "description": "Optional project homepage — documentation, a demo, a changelog. Distinct from `repository`, which is the source of truth for the code."
     },
+    "mirror": {
+      "type": "object",
+      "description": "Written by `tools/sync-official.py`, for a package that is a generated copy of an agent in the ACowork main repo. It names the exact upstream commit the bytes came from, which is what makes `--check` a deterministic question ('does the mirror still match the commit it claims') instead of a comparison against a moving branch. A hand-authored package has no mirror block; a hand-edited generated one fails `--check` because this file is generated too.",
+      "required": ["source_repo", "source_path", "source_commit"],
+      "additionalProperties": false,
+      "properties": {
+        "source_repo": {
+          "type": "string",
+          "description": "Upstream repository in `owner/name` form."
+        },
+        "source_path": {
+          "type": "string",
+          "description": "Directory in the upstream repository this package is copied from, e.g. `agents/product-manager-agent`."
+        },
+        "source_commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$",
+          "description": "Full commit sha the mirrored bytes were exported from. Never a branch name: a branch claim would make the check compare against whatever upstream happens to be."
+        }
+      }
+    },
     "deprecated": {
       "type": "object",
       "description": "Marks the agent as no longer recommended. The hub keeps the package published and verifiable but surfaces the notice on the site and drops it from the default listing. Used when an agent is superseded or turns out to be broken — removal from the index is the wrong tool for that, because a removed package stops being installable while a deprecation notice keeps the history honest.",

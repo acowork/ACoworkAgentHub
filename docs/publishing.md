@@ -342,13 +342,29 @@ platform page would only be a stale mirror of a subset.
 
 What the hub does keep is the identity. The platform agents published here carry
 their original `com.acowork.*` ids rather than a re-minted namespace, so a
-package installed from the main repo's examples stays upgradeable from this
-registry instead of forking into a second, differently-named agent.
+package installed from the main repo's agent sources stays upgradeable from
+this registry instead of forking into a second, differently-named agent.
 
-The source of truth for those agents is still the main repo's `examples/`:
-`tools/sync-official.py` mirrors them here byte-for-byte, and `validate.yml`
-fails if the two copies drift. So "the hub serves them" does not mean "the hub
-owns them".
+The source of truth for those agents is the main repo's `agents/<name>-agent/`:
+`tools/sync-official.py` mirrors them here byte for byte and records the
+upstream commit in each package's `hub.json.mirror.source_commit`. So "the hub
+serves them" does not mean "the hub owns them" — and `agents/official/**` is a
+generated area that no PR may edit by hand.
+
+The commit claim is what makes the check worth having. Comparing the mirror
+against "whatever master is" would turn CI red for every unrelated upstream
+commit until someone re-synced, which is how an alarm gets ignored. Instead
+two checks ask two questions:
+
+| | Question | On failure |
+|---|---|---|
+| `--check` | does the mirror match the commit it claims? | blocks the PR and blocks publishing — someone hand-edited the generated area, or the claim is wrong |
+| `--check --main-ref origin/master --report-only` | has master moved past the bytes we publish? | a CI notice, and the trigger to run the sync; deliberately not a failure |
+
+The second one counts only bytes that go into the published `.agent`
+(`manifest.toml`, `prompts/`, `skills/`, `assets/`). `hub.json` is excluded
+because it records the commit, so it differs against any other ref by
+construction; including it would make the notice fire on every run.
 
 ## Reproducing a release locally
 

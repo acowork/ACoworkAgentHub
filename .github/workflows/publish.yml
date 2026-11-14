@@ -78,10 +78,18 @@ jobs:
             git clone --depth 1 --single-branch --branch master "https://github.com/$MAIN_REPO.git" ../main-repo
           fi
 
-      # The main repo's `examples/*` is the source of truth for the platform
+      # The main repo's `agents/*` is the source of truth for the platform
       # agents mirrored under agents/official/. Publishing a stale mirror
-      # would ship packages the main repo has already replaced.
-      - name: Check the official-agent mirror against the main repo
+      # would ship packages the main repo has already replaced, so this is a
+      # gate, not a notice: the mirror must match the commit it claims.
+      - name: Fetch the commits the mirror claims
+        run: |
+          set -euo pipefail
+          for c in $(python tools/sync-official.py --print-claims); do
+            git -C ../main-repo fetch --depth 1 origin "$c"
+          done
+
+      - name: Check the mirror matches the commit it claims
         run: python tools/sync-official.py --main-repo ../main-repo --check
 
       - name: Restore the registry signing key

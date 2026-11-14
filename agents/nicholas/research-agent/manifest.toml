@@ -5,9 +5,8 @@
 # they live in hub.json, next to this file.
 
 agent_id = "io.github.nicholas.research-agent"
-version = "0.1.0"
-name = "research-agent"
-display_name = "Research Agent"
+version = "0.1.1"
+name = "Research Agent"
 role = "Research Analyst"
 description = "Turns a question into a sourced, structured research brief with citations, confidence levels and open questions."
 author = "Nicholas"

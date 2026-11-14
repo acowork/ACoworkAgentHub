@@ -44,7 +44,7 @@ and type. The fields a community agent actually uses:
 | Field | Why it is there |
 |---|---|
 | `agent_id` | Package identity. Reverse-domain. |
-| `version`, `name`, `display_name`, `role` | Identity and display. `role` is required — it is core information, not decoration. |
+| `version`, `name`, `role` | Identity and display. `name` is the short label the app shows ("Docs", "PM", "QA"); the hub's index carries it as `display_name`. `role` is required — it is core information, not decoration. |
 | `description`, `author` | Attribution. |
 | `runtime_version` | Which runtime the package needs. |
 | `labels` | Retrieval tags (ADR-104). The hub derives the browse category from these. |

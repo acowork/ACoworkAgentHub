@@ -46,7 +46,12 @@ agents/
 - `<owner>` — lowercase kebab-case, 2–39 chars, `[a-z0-9]([a-z0-9-]*[a-z0-9])?`.
   Use your GitHub handle or organisation name, lowercased.
 - `<name>` — lowercase kebab-case, 2–49 chars, same character rules.
-- The `<name>` segment **must equal** `manifest.name`.
+- `<name>` is a **routing slug**, not a label, and it does not have to equal
+  `manifest.name`. `manifest.name` is the main repo's human-readable short
+  name ("Docs", "PM", "QA", "Research Agent") and the hub never rewrites it;
+  binding the two would force the platform's mirrored packages to be renamed
+  here, which is not this repository's call to make. What the card and the
+  index show is `manifest.name`; what the URL and the tree show is `<name>`.
 - Directories starting with `_` are ignored by the index builder and by the
   validator's discovery. Only `_template` is reserved.
 - One manifest per directory. A directory without a `manifest.toml` is not an
