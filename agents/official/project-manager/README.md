@@ -42,7 +42,7 @@ Read them before you install:
 ## Provenance
 
 - **Agent id**: `com.acowork.project-manager`
-- **Version**: `1.2.0`
+- **Version**: `1.2.1`
 - **Author**: ACowork Team
 - **Source**: [`agents/project-manager-agent`](https://github.com/acowork/ACowork/tree/master/agents/project-manager-agent) in the ACowork main repo
 - **License**: Apache-2.0
