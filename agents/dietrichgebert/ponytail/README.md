@@ -38,7 +38,7 @@ Read them before you install:
 ## Provenance
 
 - **Agent id**: `github.ponytail`
-- **Version**: `1.0.0`
+- **Version**: `1.0.1`
 - **Author**: DietrichGebert
 - **Source**: [`agents/ponytail-agent`](https://github.com/acowork/ACowork/tree/master/agents/ponytail-agent) in the ACowork main repo
 - **License**: MIT
