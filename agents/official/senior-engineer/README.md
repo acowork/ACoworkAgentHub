@@ -40,7 +40,7 @@ Read them before you install:
 ## Provenance
 
 - **Agent id**: `com.acowork.senior-engineer`
-- **Version**: `1.2.0`
+- **Version**: `1.2.1`
 - **Author**: ACowork Team
 - **Source**: [`agents/senior-engineer-agent`](https://github.com/acowork/ACowork/tree/master/agents/senior-engineer-agent) in the ACowork main repo
 - **License**: Apache-2.0
