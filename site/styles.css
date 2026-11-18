@@ -85,22 +85,33 @@ code.inline {
 
 .nav {
   position: sticky; top: 0; z-index: 50;
-  background: rgba(13,14,16,.86);
-  backdrop-filter: blur(12px);
+  background: rgba(13,14,16,.72);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--line);
 }
-.nav__inner { display: flex; align-items: center; gap: 28px; height: 62px; }
+.nav__inner { display: flex; align-items: center; gap: 24px; height: 64px; }
 .nav__brand { display: flex; align-items: center; gap: 10px; color: var(--text); }
 .nav__brand:hover { color: var(--text); }
-.nav__logo { height: 34px; width: auto; }
+.nav__logo { height: 40px; width: auto; }
 .nav__tag {
-  font-size: .78rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+  font-size: .78rem; font-weight: 500; letter-spacing: .02em;
   color: var(--text-mute); border-left: 1px solid var(--line-2); padding-left: 10px;
 }
-.nav__links { display: flex; gap: 22px; margin-left: auto; }
-.nav__links a { color: var(--text-dim); font-size: .92rem; }
+.nav__links { display: flex; gap: 28px; margin-left: 20px; flex: 1; }
+.nav__links a { color: var(--text-dim); font-size: .94rem; font-weight: 500; transition: color .2s ease; }
 .nav__links a:hover { color: var(--text); }
-.nav__actions { display: flex; align-items: center; gap: 12px; }
+.nav__links a[aria-current="page"] { color: var(--text); }
+.nav__actions { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+.nav__social { display: inline-flex; align-items: center; gap: 2px; }
+.nav__icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: 8px;
+  color: var(--text-dim);
+  transition: color .15s ease, background .15s ease;
+}
+.nav__icon:hover { color: var(--text); background: var(--bg-2); }
+.nav__icon svg { display: block; width: 20px; height: 20px; }
 
 /* ---------- buttons ---------- */
 
@@ -122,8 +133,8 @@ code.inline {
    the agent list - the things people came for - sit above the fold. */
 .ah-hero { padding: 26px 0 16px; }
 .ah-hero h1 {
-  margin: 0 0 8px; font-size: clamp(2rem, 5vw, 3rem); line-height: 1.05;
-  letter-spacing: -.02em;
+  margin: 0 0 8px; font-size: clamp(1.85rem, 3.6vw, 2.65rem); line-height: 1.25;
+  letter-spacing: -.015em; font-weight: 600;
   background: var(--brand-grad); -webkit-background-clip: text; background-clip: text; color: transparent;
 }
 .ah-lead { margin: 0 0 10px; font-size: 1rem; color: var(--text-dim); max-width: 68ch; }
