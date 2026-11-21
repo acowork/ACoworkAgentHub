@@ -79,6 +79,7 @@ LICENSE_FILENAME = "LICENSE"
 #: An explicit whitelist, not a glob: a new directory in the main repo must
 #: not become a published package by accident.
 MAIN_TO_HUB_NAME = {
+    "android-node-agent": "android-node",
     "document-manager-agent": "document-manager",
     "product-manager-agent": "product-manager",
     "project-manager-agent": "project-manager",

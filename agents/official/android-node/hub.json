@@ -1,0 +1,14 @@
+{
+  "publisher": {
+    "id": "acowork:official",
+    "display_name": "ACowork",
+    "homepage": "https://acowork.ai"
+  },
+  "license": "Apache-2.0",
+  "repository": "https://github.com/acowork/ACowork",
+  "mirror": {
+    "source_repo": "acowork/ACowork",
+    "source_path": "agents/android-node-agent",
+    "source_commit": "9591c8e023edbea5107b6b3f0745c6c903cccfad"
+  }
+}
