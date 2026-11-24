@@ -4,6 +4,7 @@
   "publisher_id": "acowork:official",
   "owner_dir": "official",
   "agents": [
+    "com.acowork.android-node",
     "com.acowork.document-manager",
     "com.acowork.product-manager",
     "com.acowork.project-manager",
