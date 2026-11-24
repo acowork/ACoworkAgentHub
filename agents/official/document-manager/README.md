@@ -42,7 +42,7 @@ Read them before you install:
 ## Provenance
 
 - **Agent id**: `com.acowork.document-manager`
-- **Version**: `1.1.1`
+- **Version**: `1.1.2`
 - **Author**: ACowork Team
 - **Source**: [`agents/document-manager-agent`](https://github.com/acowork/ACowork/tree/master/agents/document-manager-agent) in the ACowork main repo
 - **License**: Apache-2.0
