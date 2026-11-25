@@ -44,7 +44,7 @@ Read them before you install:
 ## Provenance
 
 - **Agent id**: `com.acowork.product-manager`
-- **Version**: `1.2.2`
+- **Version**: `1.2.6`
 - **Author**: ACowork Team
 - **Source**: [`agents/product-manager-agent`](https://github.com/acowork/ACowork/tree/master/agents/product-manager-agent) in the ACowork main repo
 - **License**: Apache-2.0

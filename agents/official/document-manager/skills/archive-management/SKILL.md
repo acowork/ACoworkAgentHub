@@ -17,7 +17,7 @@ tool_deps:
   - doc_list_trash
   - doc_restore
   - doc_rmdir
-  - pm_create_task
+  - pm_add_activity
   - mcp_memory__memory_store
   - mcp_memory__memory_recall
 ---
@@ -39,7 +39,7 @@ Archiving is a move with a rule, not a delete with a hope.
   and `doc_restore` are the undo; there is no purge, so do not promise permanence.
 - Directory pruning after an archive sweep: `doc_rmdir` empties bottom-up, refuses a
   non-empty directory, and never cascades.
-- Retention follow-up is a `pm_create_task` with a due date, not a note.
+- Retention follow-up is a task with a due date, not a note — but filing it is the PM's call: report it with `pm_add_activity` and let the PM raise the card.
 
 ## Execution Steps
 
@@ -62,7 +62,11 @@ Archiving is a move with a rule, not a delete with a hope.
    - Preserve retrieval path and cross-links
    - Use `mcp_memory__memory_store` to persist archive decisions and locations
 
-## Output Format
+## Output
+
+One file, published once into `{doc_path}/the canonical page for the artifact (one page per task)` — this is the task's deliverable, not a record of
+doing it. Outline it: headings and bullets, ≤ ~80 lines unless the material is long-form.
+See `rules.md` → *Document output*.
 
 ```markdown
 # Archive Plan: [Scope]

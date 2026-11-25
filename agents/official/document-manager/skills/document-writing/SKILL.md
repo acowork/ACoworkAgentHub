@@ -29,6 +29,11 @@ Write for a specific reader and task. Do not create generic documentation withou
 
 ## System of Record
 
+- **One page per task.** The document you write *is* the deliverable: publish it once, then let
+  later reads find it instead of building a second page beside it.
+- **Extend, do not echo.** When a page already covers the topic, `doc_write` the delta with
+  `if_version`; a second page that restates the first is duplication, not organization.
+
 Write into the library, with the concurrency guard.
 
 - `doc_stat` for the current `version`, then `doc_write` with `if_version` on
@@ -68,7 +73,11 @@ Write into the library, with the concurrency guard.
    - Use `doc_write` to save or update document when requested
    - Use `mcp_memory__memory_store` to persist document location, template, style decisions, and owner/freshness rules
 
-## Output Format
+## Output
+
+One file, published once into `{doc_path}/the canonical page for the artifact (one page per task)` — this is the task's deliverable, not a record of
+doing it. Outline it: headings and bullets, ≤ ~80 lines unless the material is long-form.
+See `rules.md` → *Document output*.
 
 ```markdown
 # [Document Title]

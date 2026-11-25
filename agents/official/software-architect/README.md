@@ -39,7 +39,7 @@ Read them before you install:
 ## Provenance
 
 - **Agent id**: `com.acowork.software-architect`
-- **Version**: `1.1.2`
+- **Version**: `1.1.6`
 - **Author**: ACowork Team
 - **Source**: [`agents/software-architect-agent`](https://github.com/acowork/ACowork/tree/master/agents/software-architect-agent) in the ACowork main repo
 - **License**: Apache-2.0
