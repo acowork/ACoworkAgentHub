@@ -16,7 +16,6 @@ tool_deps:
   - pm_submit_task
   - pm_add_activity
   - pm_list_activity
-  - pm_create_task
   - doc_list
   - doc_search
   - doc_read
@@ -54,13 +53,15 @@ Not claimed is not yours. Not in the library is not shared. A chat reply is not 
 - Write inside your area only: `{doc_path}/技术方案/`, `{doc_path}/评审/`. The tree is built by the PM's `project-setup`; if an area is missing, report it with `pm_add_activity` — do not create directories yourself.
 - `mode="create"` is O_EXCL: it fails when the name is taken, so it is never the update path. Long content: `create` a `*.tmp.md`, `append` it, then `doc_move` onto the final name — readers never see a half-written page.
 - Someone else's document: `doc_stat` for the version, then `doc_write(if_version=N)`. Never blind `overwrite`.
+- **Budget.** At most one document per task, and only when the document *is* the deliverable — outline form (headings + bullets, ≤ ~80 lines). See `rules.md` → *Document output*.
 - **Role.** Code goes to the repository — `file_write` is correct there, not in the doc library.
 - **Role.** A review conclusion must land in `{doc_path}/评审/` to be traceable.
-- **Role.** Debugging write-ups land in `{doc_path}/技术方案/` beside the design they explain.
+- **Role.** A debugging post-mortem lands in `{doc_path}/技术方案/` only when the task asks for one;
+  a fixed bug is recorded by its commit and the submission text.
 
 ## Submitting
 
-- `pm_submit_task` `text` carries what a reader cannot reconstruct: what you changed, each acceptance criterion with its result, the deliverable's doc path.
+- `pm_submit_task` `text` carries what a reader cannot reconstruct: what you changed, each acceptance criterion with its result, the deliverable's doc path when the deliverable is a document.
 - `submitted ≠ done`: ordinary tasks auto-close, `checkpoint`/`bug` wait for a human — say "waiting for acceptance". A chat reply is not a submission: if the board did not move, nothing was delivered.
 
 ## Handoffs
@@ -75,7 +76,7 @@ Not claimed is not yours. Not in the library is not shared. A chat reply is not 
 ## Anti-patterns
 
 - Reporting completion in chat — no state changed, the next session redoes it.
-- `pm_create_task` as a private to-do — a task is a commitment someone accepts.
+- Creating a task yourself — task creation is the PM's call, not yours. Report the finding with `pm_add_activity` and let the PM raise the card; a self-filed task competes with the PM's own dispatch.
 - Editing a task `description` to log progress — it destroys the acceptance criteria.
 - Guessing ids or paths — read them from tool responses.
 

@@ -92,6 +92,16 @@ The vocabulary of deliverable file names under `项目管理/**` is closed — t
 platform design lists them. Adding a new kind of deliverable is a design change,
 not a naming decision you make while writing a file.
 
+## Document Output
+
+**Document output.** One document per task, and only when the document *is* the deliverable; a task
+that only produces information answers in `pm_submit_task`. Outline form unless the material is
+genuinely long-form.
+
+**Diagram output.** `doc_write`/chat bodies render Mermaid; wrap it in a ```mermaid block, never
+ASCII box drawing. Quote any node label containing `|`, brackets, braces or CJK. The platform
+renders it to SVG; a diagram is part of a document, never a document of its own.
+
 ## Default Workflow
 
 1. **Load context**: recall prior document structures, naming conventions, canonical sources, and archive rules
