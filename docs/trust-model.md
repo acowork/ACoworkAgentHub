@@ -1,6 +1,6 @@
 # Trust model
 
-This document defines what the signature on a `.agent` package means, what it
+This document defines what the signature on a `.bot` package means, what it
 does not mean, and how a consumer decides whether to trust a package.
 
 It supersedes the earlier `signed-attributes-v2.md` draft. That draft
@@ -22,7 +22,7 @@ and it works today.
 
 ### 2. Did this package come through the official channel?
 
-ACoworkAgents *is* the official distribution channel for agents. It signs
+ACoworkAgents *is* the official distribution channel for bots. It signs
 the packages it publishes. A consumer can therefore ask: is the signer of
 this package one of the keys the official channel publishes?
 
@@ -35,7 +35,7 @@ when:
 
 This is a **distribution-channel marker**, not an endorsement. It says
 "the official channel produced and published this artifact, and it has not
-been altered since". It says nothing about whether the agent is any good.
+been altered since". It says nothing about whether the bot is any good.
 
 ## Why there is no "official badge"
 
@@ -56,7 +56,7 @@ add a trust badge of any kind:
   verified, and it is never rendered as an official or verified badge.
 - The reserved-prefix list in `schema/catalog.json` (`com.acowork.`,
   `acowork.`, `official.`) is **rejected at validation time**, so a
-  community agent cannot impersonate an official id in the first place.
+  community bot cannot impersonate an official id in the first place.
 - The only thing the signature establishes is the two facts above. There is
   no "verified publisher" claim, no endorsement level, no quality score.
 
@@ -144,7 +144,7 @@ not encounter the third case.
   secret, keep the old key listed until no published package still uses it,
   then remove it.
 - A key listed in the trusted set is a statement about the distribution
-  channel, not about the agent. Keys are rotated for operational reasons
+  channel, not about the bot. Keys are rotated for operational reasons
   (compromise, expiry), not as a way to express trust in content.
 
 ## What this does not give you
@@ -162,13 +162,13 @@ Stated plainly, because these are the limits of the mechanism:
   rotation and CI secret hygiene are the mitigation.
 - **No protection of the *repository* itself.** The signature protects the
   published artifact. A compromised repository or a malicious merge can
-  still publish a bad agent; review is the control there.
+  still publish a bad bot; review is the control there.
 
 ## Open questions
 
 Carried forward from the earlier draft; see also `docs/publishing.md`.
 
-- Do third-party agents need their own signing keys at all, so a consumer
+- Do third-party bots need their own signing keys at all, so a consumer
   can tell "published by the channel" from "signed by the publisher"? The
   current model answers only the former.
 - Should the trusted key set be distributed out of band (e.g. pinned in

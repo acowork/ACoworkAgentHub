@@ -1,4 +1,4 @@
-# Deploying the Agent Hub
+# Deploying the Bot Hub
 
 Two environments, two jobs. Locally you reproduce the pipeline to prove a
 change is correct; in the cloud `publish.yml` runs the same pipeline and the
@@ -56,7 +56,7 @@ python tools/check-site.py --site dist/site --fixture-count 130
 ```
 
 `check-site.py` is the one that matters for the page: it opens the site in a
-real browser, and it builds a **synthetic 130-agent registry** with the same
+real browser, and it builds a **synthetic 130-bot registry** with the same
 builder to prove the shards page correctly. The shipped registry is a single
 shard, so without the fixture every paging assertion would be vacuous.
 
@@ -83,7 +83,7 @@ printing the resolved policy per request:
 ```
   GET /data/meta.json          -> 200 | Cache-Control: no-cache
   GET /data/pages/p000.json    -> 200 | Cache-Control: public, max-age=31536000, immutable
-  GET /downloads/x.agent       -> 200 | Cache-Control: no-cache
+  GET /downloads/x.bot         -> 200 | Cache-Control: no-cache
 ```
 
 That is the part of the deployment a plain static server cannot show, and it is
@@ -109,7 +109,7 @@ release:
 python tools/registry-digest.py --compare dist/registry.digest.json \
     --packages dist --key .keys/ci/registry.key; echo "exit=$?"
 
-# touch one agent -> exit 0 and it names exactly that agent
+# touch one bot -> exit 0 and it names exactly that bot
 printf '\n' >> agents/official/product-manager/prompts/system.md
 python tools/registry-digest.py --compare dist/registry.digest.json \
     --packages dist --key .keys/ci/registry.key --changed-out /tmp/changed.txt
@@ -117,19 +117,19 @@ git checkout agents/official/product-manager/prompts/system.md
 ```
 
 And that reuse is decided by content, not by the changed list — an empty list
-claiming "nothing changed" must still repack a modified agent:
+claiming "nothing changed" must still repack a modified bot:
 
 ```sh
 : > /tmp/none.txt
 printf '\n' >> agents/official/product-manager/prompts/system.md
 python tools/ci-pack-all.py --out /tmp/reuse --key .keys/ci/registry.key \
     --reuse dist --changed /tmp/none.txt | tail -1
-# -> "1 packed, N-1 reused" (the modified agent is repacked anyway)
+# -> "1 packed, N-1 reused" (the modified bot is repacked anyway)
 git checkout agents/official/product-manager/prompts/system.md
 ```
 
 And that a **key rotation is never treated as "unchanged"**: content matching
-alone would reuse a package signed by the old key, so every agent would read as
+alone would reuse a package signed by the old key, so every bot would read as
 "unknown signer" under a rotated trust anchor. Point `--key` at a different key
 and reuse must refuse:
 
@@ -153,7 +153,7 @@ whole caching design, so `check-site.py` pins its three properties:
 | Change | build_id | Why |
 |---|---|---|
 | `generated_at`, `source.commit` | **unchanged** | provenance is not content; a docs-only commit must not make every returning visitor re-download every shard, script and stylesheet |
-| an agent's registry entry | changed | the data the page renders moved |
+| a bot's registry entry | changed | the data the page renders moved |
 | `hub.js`, `styles.css`, `_headers` | changed | these are cached for a year by URL; an id that ignored them would keep visitors running an old script against new data |
 
 Rebuild and confirm the id is stable while nothing real changed:
@@ -277,7 +277,7 @@ toggle (§2.1a).
 ### 2.3 Routine publish
 
 **The first time only.** The gate compares this build's content against the
-published baseline. On a brand-new hub the agents are already committed, so the
+published baseline. On a brand-new hub the bots are already committed, so the
 content *has not changed* — the gate would report `publish NOT NEEDED` and skip
 packing, release **and deploy**, leaving the empty Pages project at 404 forever.
 A push cannot bootstrap itself. Run the workflow by hand instead:
@@ -299,7 +299,7 @@ Push to `main`. The pipeline then:
 4. computes `registry_digest = H(source trees, builder, signing key)`;
 5. **stops here if the digest is unchanged** — no packing, no signing, no
    upload, and no deploy if the commit is already the deployed one;
-6. otherwise packs only changed agents, reusing published packages whose
+6. otherwise packs only changed bots, reusing published packages whose
    signed content matches the source;
 7. verifies every package, runs the interop guard, builds the index and the
    sharded site, renders it in a headless browser;
@@ -330,7 +330,7 @@ It asserts, against the deployed site: the page paints cards, first paint pulls
 `meta.json` + one shard and **no** detail payload, `?v=<build>` on `hub.js` and
 `styles.css` equals the build id inside `meta.json` (so the stamp came from the
 builder, not from a hand bump), each path carries the cache policy `_headers`
-promises, every `.agent` the site serves has the same byte size as the release
+promises, every `.bot` the site serves has the same byte size as the release
 asset, and searching pulls the remaining shards.
 
 Why it drives a headless browser instead of `curl`: Cloudflare rejects some raw
@@ -365,9 +365,9 @@ anything, the gate is broken** and that is a bug worth stopping on.
 | `Interop check` fails | the main repo's parser rejects a hub package | the mirror drifted or a hub-only field leaked into `manifest.toml` — move it to `hub.json` |
 | `Check the mirror matches the commit it claims` fails | `agents/official/**` was hand-edited, or `hub.json`'s claim does not match the bytes beside it | re-sync: `python tools/sync-official.py --main-repo ../main-repo`. If the intent was a content change, it belongs in the main repo, not here |
 | `Fetch the commits the mirror claims` fails | a claimed commit is not reachable in the shallow clone of the main repo | the claim names a commit that was never pushed, or GitHub refused a sha fetch — check `hub.json.mirror.source_commit` against `acowork/ACowork` |
-| `Report whether master has moved past the mirror` prints a warning | the main repo has newer agent content than what this hub publishes | run the sync and merge the mirror PR. This is a notice, not a failure — it must never block an unrelated hub PR |
+| `Report whether master has moved past the mirror` prints a warning | the main repo has newer bot content than what this hub publishes | run the sync and merge the mirror PR. This is a notice, not a failure — it must never block an unrelated hub PR |
 | Page renders empty in production | shards 404, or `_headers` caching an old `meta.json` | check §2.4 header output |
-| A removed agent still shows on the site | stale shard in an old deployment alias | a fresh deploy replaces the bundle; if it persists, the release prune did not run |
+| A removed bot still shows on the site | stale shard in an old deployment alias | a fresh deploy replaces the bundle; if it persists, the release prune did not run |
 
 ### 2.6 Rollback
 
@@ -399,6 +399,6 @@ README records.
 
 ## 3. What is *not* deployed
 
-Nothing binary is committed. `dist/`, `.ci/`, `.keys/` and every `.agent` file
+Nothing binary is committed. `dist/`, `.ci/`, `.keys/` and every `.bot` file
 are gitignored. If you ever find yourself committing a package to make a deploy
 work, the pipeline is missing a step and that step is the fix.

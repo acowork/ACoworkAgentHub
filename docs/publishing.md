@@ -1,6 +1,6 @@
 # The release loop
 
-How a submission becomes a published, signed, downloadable agent — and how
+How a submission becomes a published, signed, downloadable bot — and how
 that reaches a user.
 
 ## The whole loop
@@ -25,12 +25,12 @@ that reaches a user.
        │                        │      │                       │
        │                        │      ├─▶ GitHub Release       │
        │                        │      │   (index.json,          │
-       │                        │      │    *.agent, SHA256SUMS)  │
+       │                        │      │    *.bot, SHA256SUMS)  │
        │                        │      │                       │
        │                        │      └─▶ Cloudflare Pages ──────┼──▶ hub.acowork.ai
        │                        │                              │
        │                        │                              │  user downloads
-       │                        │                              │  .agent package
+       │                        │                              │  .bot package
        │                        │                              │
        │                        │  Desktop App verifies the signature
        │                        │  on install (acowork-node)    │
@@ -53,8 +53,8 @@ hashes all three:
 
 | Input | Why it moves the published bytes |
 |---|---|
-| the source tree of each agent | the obvious one — prompts, skills, manifest, avatar |
-| the builder (`pack.py`, `signing.py`, `build-index.py`, the schemas) | a packer fix changes every package while changing no agent |
+| the source tree of each bot | the obvious one — prompts, skills, manifest, avatar |
+| the builder (`pack.py`, `signing.py`, `build-index.py`, the schemas) | a packer fix changes every package while changing no bot |
 | the signing key | the same content signed by a different key is a different artifact *and* a different trust claim |
 
 Consequences the pipeline relies on:
@@ -64,7 +64,7 @@ Consequences the pipeline relies on:
 - **a builder or signer change rebuilds every package.** The digest says
   "publish" and `--changed-out` lists all of them. Reusing packages that this
   builder did not produce, or this key did not sign, would leave the registry
-  holding two generations of package: an agent whose data never changed would
+  holding two generations of package: a bot whose data never changed would
   never receive a section the builder starts emitting.
 - **reuse is proven by content, not by bookkeeping.** `ci-pack-all.py` compares
   the signed section digests inside a published package against the current
@@ -72,7 +72,7 @@ Consequences the pipeline relies on:
   publish an old package under a new version.
 - **reuse is also proven by signer.** Content matching alone would reuse a
   package signed before a key rotation: the bytes are right, so it would ship,
-  and every agent would then read as "unknown signer" against a trust anchor
+  and every bot would then read as "unknown signer" against a trust anchor
   that no longer lists that key. A package is reusable only if its signer is
   the key this build signs with — otherwise it is re-signed.
 - **line endings are not content.** `.gitattributes` normalises the builder's
@@ -157,12 +157,12 @@ script, the real shell, the real flags.
 
 | Output | Where it goes | What it is |
 |---|---|---|
-| the site | `hub.acowork.ai` (Cloudflare Pages) | the page, the shards, and every `.agent` package under `downloads/` |
-| the rolling Release | `github.com/acowork/ACoworkAgentHub/releases/tag/latest` | the same snapshot for machine consumers: `index.json`, `*.agent`, `SHA256SUMS`, `registry.digest.json` |
+| the site | `hub.acowork.ai` (Cloudflare Pages) | the page, the shards, and every `.bot` package under `downloads/` |
+| the rolling Release | `github.com/acowork/ACoworkAgentHub/releases/tag/latest` | the same snapshot for machine consumers: `index.json`, `*.bot`, `SHA256SUMS`, `registry.digest.json` |
 
 There is **one** release, `latest`, updated in place. Earlier this workflow
 created a dated release per publish (`v2026-10-30-<sha>`), each carrying every
-package: with N agents and M publishes that is N×M×2 assets accumulating
+package: with N bots and M publishes that is N×M×2 assets accumulating
 forever, and a release page listing thousands of files. Assets that a build no
 longer produces are deleted, so the release always mirrors the current
 snapshot rather than its whole history.
@@ -183,7 +183,7 @@ reasons:
 2. **The data source is here.** `data/index.json` is a generated artifact of
    this repo's pipeline. Copying it to another repo to render it adds a copy
    step and a way for the two to disagree.
-3. **The publish loop is here.** Adding an agent is a pull request to this
+3. **The publish loop is here.** Adding a bot is a pull request to this
    repo; the page updates when the release does. The marketing site stays
    about the product.
 
@@ -217,12 +217,12 @@ anyway, while making the common case (browse page 0) harder.
 Two rules follow from this and are enforced by `tools/check-site.py`:
 
 - searching may load every shard (it needs every card), but the **DOM** is
-  windowed at 96 cards, so a query matching thousands of agents cannot freeze
+  windowed at 96 cards, so a query matching thousands of bots cannot freeze
   the tab;
-- opening one agent's detail must fetch that agent's file and nothing else.
+- opening one bot's detail must fetch that bot's file and nothing else.
 
 The shipped registry is one shard, so the assertions above are run against a
-**synthetic 130-agent registry** built by the same `build-site.py`. A paging
+**synthetic 130-bot registry** built by the same `build-site.py`. A paging
 test that never has two pages proves nothing.
 
 `data/index.json` is still deployed: it is the machine endpoint for CLI
@@ -257,13 +257,13 @@ same file locally, which is what makes any of this testable before deployment.
 
 ## What `publish.yml` does, step by step
 
-1. Validates every agent (`tools/validate.py --strict`) — the same check a
+1. Validates every bot (`tools/validate.py --strict`) — the same check a
    contributor runs locally.
 2. Restores the registry signing key from the `ACOWORK_AGENTS_SIGNING_KEY`
    secret.
 3. Computes the registry digest and compares it with the published baseline
    (`tools/registry-digest.py --compare`) — unchanged content stops here.
-4. Packs and signs only the agents whose content changed
+4. Packs and signs only the bots whose content changed
    (`tools/ci-pack-all.py --changed --reuse`), then verifies **every** package,
    reused or new. A signing bug must fail the release, not ship.
 5. Runs the tamper-detection self test (`tools/selftest.py`) — proves the
@@ -275,7 +275,7 @@ same file locally, which is what makes any of this testable before deployment.
    drift. This step is what stops the hub from publishing a package the app
    would refuse to install.
 8. Builds the site (`tools/build-site.py`) and **renders it in a headless
-   browser** (`tools/check-site.py`), including a synthetic 130-agent registry
+   browser** (`tools/check-site.py`), including a synthetic 130-bot registry
    to prove the shards page correctly. A 200 on `index.html` proves nothing —
    the page is drawn by JavaScript from the shard set.
 9. Updates the rolling `latest` release in place: uploads the current packages,
@@ -299,7 +299,7 @@ the packages.
 - A published package's signature proves two things: *these exact bytes were
   signed by the official channel key* and *they have not been altered since*.
   It does not prove the publisher is a real person, and it says nothing about
-  the agent's quality. See [`trust-model.md`](trust-model.md).
+  the bot's quality. See [`trust-model.md`](trust-model.md).
 
 ## Secrets the pipeline needs
 
@@ -334,18 +334,18 @@ than silently leaving the site on a stale build.
 
 ## The website's role
 
-The main site (`acowork.ai`) has **no agent page**. Its nav carries one link, to
+The main site (`acowork.ai`) has **no bot page**. Its nav carries one link, to
 `hub.acowork.ai`, and that is the whole integration. There is no second index,
-no projected copy of the registry and no duplicated `.agent` file on that side:
-the hub serves the platform agents as well as community ones, so a separate
+no projected copy of the registry and no duplicated `.bot` file on that side:
+the hub serves the platform bots as well as community ones, so a separate
 platform page would only be a stale mirror of a subset.
 
-What the hub does keep is the identity. The platform agents published here carry
+What the hub does keep is the identity. The platform bots published here carry
 their original `com.acowork.*` ids rather than a re-minted namespace, so a
-package installed from the main repo's agent sources stays upgradeable from
-this registry instead of forking into a second, differently-named agent.
+package installed from the main repo's bot sources stays upgradeable from
+this registry instead of forking into a second, differently-named bot.
 
-The source of truth for those agents is the main repo's `agents/<name>-agent/`:
+The source of truth for those bots is the main repo's `agents/<name>-agent/`:
 `tools/sync-official.py` mirrors them here byte for byte and records the
 upstream commit in each package's `hub.json.mirror.source_commit`. So "the hub
 serves them" does not mean "the hub owns them" — and `agents/official/**` is a
@@ -361,7 +361,7 @@ two checks ask two questions:
 | `--check` | does the mirror match the commit it claims? | blocks the PR and blocks publishing — someone hand-edited the generated area, or the claim is wrong |
 | `--check --main-ref origin/master --report-only` | has master moved past the bytes we publish? | a CI notice, and the trigger to run the sync; deliberately not a failure |
 
-The second one counts only bytes that go into the published `.agent`
+The second one counts only bytes that go into the published `.bot`
 (`manifest.toml`, `prompts/`, `skills/`, `assets/`). `hub.json` is excluded
 because it records the commit, so it differs against any other ref by
 construction; including it would make the notice fire on every run.
@@ -411,12 +411,12 @@ For the gate, the Cloudflare side, and the failure modes:
 
 ## Open questions
 
-- **Third-party licenses.** The hub currently accepts an agent whose
+- **Third-party licenses.** The hub currently accepts a bot whose
   `hub.json` declares any SPDX expression, including a proprietary one. The
-  platform's own agents are Apache-2.0. Whether the hub should require an
+  platform's own bots are Apache-2.0. Whether the hub should require an
   OSI-approved license is undecided.
 - **CA governance.** Not implemented. The trigger for revisiting it is an
-  agent that ships executable content, a third-party mirror site, or the
+  bot that ships executable content, a third-party mirror site, or the
   need to distinguish publishers from each other.
 - **Key rotation.** `trusted-keys.json` has a `status` field per key and a
   `revoked` value is defined, but nothing automates rotation or the

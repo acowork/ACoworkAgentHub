@@ -1,7 +1,7 @@
-# Catalog: how the hub files an agent
+# Catalog: how the hub files a bot
 
-The hub needs two browse axes: a **category** (one per agent, primary
-navigation) and **labels** (many per agent, cross-cutting search and
+The hub needs two browse axes: a **category** (one per bot, primary
+navigation) and **labels** (many per bot, cross-cutting search and
 filtering).
 
 Neither is declared in a package. Both are derived.
@@ -17,7 +17,7 @@ labels = ["research", "reporting", "summarization"]
 
 `labels` is a main-repo field. ADR-104 states its purpose directly:
 
-> Used for Agent-list filtering, **marketplace attributes** and grouping.
+> Used for Bot-list filtering, **marketplace attributes** and grouping.
 > **Not** involved in permissions, addressing or lifecycle.
 
 Its rules are enforced by the main repo (`is_valid_label`): lowercase kebab,
@@ -25,7 +25,7 @@ Its rules are enforced by the main repo (`is_valid_label`): lowercase kebab,
 
 The main repo has **no `catalog` concept and does not need one**. The
 category is the hub's own grouping, so the mapping lives here, in
-`schema/catalog.json`, and nowhere else. Adding a community agent never
+`schema/catalog.json`, and nowhere else. Adding a community bot never
 requires touching the main repo's manifest format.
 
 ## The derivation
@@ -45,28 +45,28 @@ manifest.toml
 ```
 
 **Order matters.** The first label that maps to a category wins, because
-that is the domain the author led with. The main repo's own agents follow
+that is the domain the author led with. The main repo's own bots follow
 this convention — `engineering`, `product`, `project-management`,
 `quality`, `documents`, `architecture` are all the leading label of their
-agent.
+bot.
 
-Labels that map to nothing contribute nothing. An agent whose labels all
+Labels that map to nothing contribute nothing. A bot whose labels all
 miss the map is filed under `other`.
 
 ### Why the first match, and not a vote
 
 A vote (most common mapping wins) sounds fairer and behaves worse: with two
 labels mapping to different categories the result depends on how many
-*other* agents happen to use each label, so adding an unrelated agent could
+*other* bots happen to use each label, so adding an unrelated bot could
 recategorise an existing one. First-match is deterministic and explainable —
-the hub can always answer "why is this agent under Research?" with "its first
+the hub can always answer "why is this bot under Research?" with "its first
 label is `research`".
 
 ### Why not derive the category from `role`
 
 The main repo's platform pipeline derives a category from `role`
 (`CATEGORY_BY_ROLE` in `dev/common/sync-agent-hub.py`). That works for the
-seven platform agents, whose roles are job titles that happen to be
+seven platform bots, whose roles are job titles that happen to be
 enumerable: "Product Manager", "Project Manager", "Software Architect".
 
 It does not scale to a community registry: `role` is a free-form display
@@ -75,7 +75,7 @@ all mean roughly the same thing), and a community author may not think of
 their role as a job title at all. `labels` is the field ADR-104 designed for
 exactly this job, and it is already validated by the main repo.
 
-`role` is still **required** for community agents — it is core identity
+`role` is still **required** for community bots — it is core identity
 information and the site shows it on every card. It just is not the
 category key.
 
@@ -110,11 +110,11 @@ vocabulary. The main repo accepts any well-formed kebab slug, and so does
 the hub.
 
 The hub ships a `label_categories` map that covers the labels the main
-repo's own agents use, plus the obvious neighbours. It is a starting
+repo's own bots use, plus the obvious neighbours. It is a starting
 point, not a gate: a label that is not in the map still works — it simply
-does not contribute a category, and the agent falls back to `other`.
+does not contribute a category, and the bot falls back to `other`.
 
-When a community agent uses a label the map does not know, the fix is one
+When a community bot uses a label the map does not know, the fix is one
 line in `schema/catalog.json` — either map the label, or leave it alone if
 it is not a category-bearing term.
 
@@ -128,7 +128,7 @@ union. The rules:
   and description, every skill name, and every permission name.
 - **Multi-word queries are AND.** Every whitespace-separated token must
   appear somewhere in the searchable text.
-- **Category filter** is single-select and exact: an agent is in exactly one
+- **Category filter** is single-select and exact: a bot is in exactly one
   category, so a category filter needs no "all of" semantics.
 - **Label filter** is multi-select and OR within itself, AND with the
   category filter: "category=engineering AND (label=testing OR label=security)".

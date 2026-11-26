@@ -6,12 +6,12 @@
   <meta name="color-scheme" content="dark light" />
   <meta name="theme-color" content="#0d0e10" />
 
-  <title>Agent Hub &mdash; ACowork</title>
-  <meta name="description" content="The ACowork agent registry — every .agent package, official or community, signed and searchable by role, capability and label." />
+  <title>Bot Hub &mdash; ACowork</title>
+  <meta name="description" content="The ACowork bot registry — every .bot package, official or community, signed and searchable by role, capability and label." />
 
   <meta property="og:type" content="website" />
-  <meta property="og:title" content="ACowork Agent Hub" />
-  <meta property="og:description" content="Signed .agent packages for ACowork — one searchable registry, official and community alike." />
+  <meta property="og:title" content="ACowork Bot Hub" />
+  <meta property="og:description" content="Signed .bot packages for ACowork — one searchable registry, official and community alike." />
   <meta name="twitter:card" content="summary_large_image" />
 
   <link rel="icon" type="image/svg+xml" href="assets/logo.svg" />
@@ -27,11 +27,11 @@
     <div class="container nav__inner">
       <a class="nav__brand" href="https://acowork.ai" aria-label="ACowork home">
         <img src="assets/logo.svg" alt="ACowork" class="nav__logo" height="40" />
-        <span class="nav__tag">Agent Hub</span>
+        <span class="nav__tag">Bot Hub</span>
       </a>
       <nav class="nav__links" aria-label="Primary">
         <a href="https://acowork.ai">Home</a>
-        <a href="https://hub.acowork.ai" aria-current="page">Agent Hub</a>
+        <a href="https://hub.acowork.ai" aria-current="page">Bot Hub</a>
         <a href="https://gallery.acowork.ai">App Gallery</a>
         <a href="https://github.com/acowork/ACoworkAgentHub" target="_blank" rel="noopener">Submit</a>
       </nav>
@@ -63,14 +63,14 @@
 
     <section class="ah-hero">
       <div class="container">
-        <h1>Agent Hub</h1>
+        <h1>Bot Hub</h1>
         <p class="ah-lead">
-          Every agent below is a signed <code class="inline">.agent</code> package. Download one, import it
-          in the Desktop App, and it joins the same Gateway as your own agents.
+          Every bot below is a signed <code class="inline">.bot</code> package. Download one, import it
+          in the Desktop App, and it joins the same Gateway as your own bots.
         </p>
         <ul class="ah-facts" aria-label="What this page is">
-          <li><strong id="ah-count-total">&mdash;</strong> agents published</li>
-          <li>Open an agent to see the <strong>permissions</strong> it asks for &mdash; read them before you install</li>
+          <li><strong id="ah-count-total">&mdash;</strong> bots published</li>
+          <li>Open a bot to see the <strong>permissions</strong> it asks for &mdash; read them before you install</li>
         </ul>
       </div>
     </section>
@@ -80,13 +80,13 @@
 
         <div class="ah-toolbar" role="search">
           <div class="ah-search">
-            <input id="ah-q" type="search" placeholder="Search agents, roles, capabilities, skills…" aria-label="Search agents" autocomplete="off" />
+            <input id="ah-q" type="search" placeholder="Search bots, roles, capabilities, skills…" aria-label="Search bots" autocomplete="off" />
             <button id="ah-clear" type="button" class="ah-clear" hidden aria-label="Clear search">&times;</button>
           </div>
           <div class="ah-filters">
             <label class="ah-field">
               <span class="ah-field__label">Sort</span>
-              <select id="ah-sort" aria-label="Sort agents">
+              <select id="ah-sort" aria-label="Sort bots">
                 <option value="name">Name</option>
                 <option value="category">Category</option>
                 <option value="size">Package size</option>
@@ -114,7 +114,7 @@
         <div class="ah-grid" id="ah-grid"></div>
 
         <button class="btn btn--ghost ah-more" id="ah-more" type="button" hidden>
-          Load more agents
+          Load more bots
         </button>
 
         <div class="ah-skeleton" id="ah-skeleton" aria-hidden="true">
@@ -145,7 +145,7 @@
 
     <section class="section section--alt" id="submit">
       <div class="container">
-        <h2>Publish an agent</h2>
+        <h2>Publish a bot</h2>
         <p class="ah-lead">
           The hub takes pull requests. You keep the source; the pipeline builds, signs and publishes
           the package for you.
@@ -168,7 +168,7 @@
        that did nothing, and the thing the user asked for is off-screen. -->
   <div class="ah-modal" id="ah-modal" hidden>
     <div class="ah-modal__backdrop" id="ah-modal-backdrop"></div>
-    <div class="ah-modal__panel" role="dialog" aria-modal="true" aria-label="Agent details">
+    <div class="ah-modal__panel" role="dialog" aria-modal="true" aria-label="Bot details">
       <aside class="ah-detail" id="ah-detail"></aside>
     </div>
   </div>

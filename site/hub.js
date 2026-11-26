@@ -317,7 +317,7 @@
       var cards = loadedCards();
       var shown = drawCards(cards);
       var morePages = visiblePages < meta.page_count;
-      var bits = [meta.total + ' agent' + (meta.total === 1 ? '' : 's')];
+      var bits = [meta.total + ' bot' + (meta.total === 1 ? '' : 's')];
       if (morePages || meta.total > shown) {
         bits.push('showing ' + shown + ' \u2014 more load as you scroll');
       }
@@ -334,8 +334,8 @@
       var list = filtered(loadedCards());
       var shown = drawCards(list);
       var bits = [list.length === meta.total
-        ? meta.total + ' agent' + (meta.total === 1 ? '' : 's')
-        : list.length + ' of ' + meta.total + ' agents'];
+        ? meta.total + ' bot' + (meta.total === 1 ? '' : 's')
+        : list.length + ' of ' + meta.total + ' bots'];
       if (state.cat !== 'all') bits.push('category: ' + state.cat);
       if (state.label !== 'all') bits.push('label: ' + state.label);
       if (state.sig !== 'all') bits.push('channel: ' + state.sig);
@@ -362,13 +362,13 @@
     add(detailEl, 'p', 'ah-detail__loading', 'Loading\u2026');
 
     loadDetail(agentId).then(function (a) {
-      if (!a) { add(detailEl, 'p', null, 'This agent has no detail record.'); return; }
+      if (!a) { add(detailEl, 'p', null, 'This bot has no detail record.'); return; }
       detailEl.innerHTML = '';
       detailEl.setAttribute('aria-busy', 'false');
 
       var close = el('button', 'ah-detail__close', '\u00d7');
       close.type = 'button';
-      close.setAttribute('aria-label', 'Close agent details');
+      close.setAttribute('aria-label', 'Close bot details');
       close.addEventListener('click', closeDetail);
       detailEl.appendChild(close);
 
@@ -379,7 +379,7 @@
       add(ht, 'p', 'ah-card__role', (a.role || '') + ' \u00b7 ' + (a.category_label || ''));
 
       var ids = add(detailEl, 'dl', 'ah-detail__ids');
-      [['agent id', a.agent_id], ['version', a.version], ['author', a.author],
+      [['bot id', a.agent_id], ['version', a.version], ['author', a.author],
        ['publisher', (a.publisher && a.publisher.display_name) || ''],
        ['license', a.license], ['runtime', a.runtime_version],
        ['channel', sigStatus(a)]
@@ -437,7 +437,7 @@
           add(bl, 'dt', null, 'signer');
           add(bl, 'dd', 'ah-detail__sha', a.signature.key_fingerprint);
         }
-        var dl = add(bs, 'a', 'btn btn--primary btn--sm', 'Download .agent');
+        var dl = add(bs, 'a', 'btn btn--primary btn--sm', 'Download .bot');
         dl.href = pkg.file;
         dl.setAttribute('download', '');
       }
@@ -451,7 +451,7 @@
       }
     }).catch(function (err) {
       detailEl.innerHTML = '';
-      add(detailEl, 'p', null, 'Could not load this agent: ' + err.message);
+      add(detailEl, 'p', null, 'Could not load this bot: ' + err.message);
     });
   }
 

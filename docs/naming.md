@@ -1,6 +1,6 @@
 # Naming rules
 
-Short version: **one agent per directory, owner-namespaced, kebab-case
+Short version: **one bot per directory, owner-namespaced, kebab-case
 everywhere, and the `agent_id` must be globally unique.**
 
 ## Why `agents/<owner>/<name>/`
@@ -10,13 +10,13 @@ instead. Reasons, in order of weight:
 
 1. **Name squatting.** With a flat layout, `agents/code-review/` is taken by
    whoever submitted first, and the second person with a perfectly good
-   `code-review` agent has to pick a worse name. Namespacing by owner makes
+   `code-review` bot has to pick a worse name. Namespacing by owner makes
    collisions structurally impossible — two people can both have a
    `research-agent`.
 2. **Discoverability.** `agents/github.com/octocat/…`-style ownership is
    visible in the directory tree, so a reader can tell at a glance who
    maintains what, and can filter the index by owner.
-3. **Ownership transfer.** If a maintainer hands an agent to another person,
+3. **Ownership transfer.** If a maintainer hands a bot to another person,
    the directory moves wholesale and the `agent_id` (which contains the owner
    segment) changes in one visible step.
 4. **Collision with the upstream repo.** The main repo uses flat
@@ -54,8 +54,8 @@ agents/
   index show is `manifest.name`; what the URL and the tree show is `<name>`.
 - Directories starting with `_` are ignored by the index builder and by the
   validator's discovery. Only `_template` is reserved.
-- One manifest per directory. A directory without a `manifest.toml` is not an
-  agent.
+- One manifest per directory. A directory without a `manifest.toml` is not a
+  bot.
 
 ## `agent_id` rules
 
@@ -79,10 +79,10 @@ agents/
   does not reproduce that inference, and blocks the namespace from being
   claimed by accident or on purpose.
 
-  The platform's own agents are published here too, under
+  The platform's own bots are published here too, under
   `agents/official/`, keeping their original `com.acowork.*` ids — so an
   installed package stays upgradeable instead of forking into a second,
-  differently-named agent. That exemption is narrow and explicit:
+  differently-named bot. That exemption is narrow and explicit:
 
   - only the publisher id `acowork:official` may use a reserved prefix,
   - only under the `agents/official/` directory,
@@ -117,7 +117,7 @@ self-declared "official" value would be an unofficial official badge.
 ## Version rules
 
 - Semver (`MAJOR.MINOR.PATCH`), optional pre-release and build metadata.
-- `MAJOR` — breaking change to the manifest contract or the agent's
+- `MAJOR` — breaking change to the manifest contract or the bot's
   behaviour.
 - `MINOR` — new capability or skill.
 - `PATCH` — wording, bug fixes, no behaviour change.
@@ -126,7 +126,7 @@ self-declared "official" value would be an unofficial official badge.
 
 ## Reserved words
 
-Do not use these as an agent `name` or `name` segment — the tooling and the
+Do not use these as a bot `name` or `name` segment — the tooling and the
 website reserve them:
 
 `index`, `json`, `admin`, `root`, `official`, `acowork`, `template`,

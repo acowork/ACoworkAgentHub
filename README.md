@@ -1,14 +1,14 @@
 # ACoworkAgentHub
 
-Community agent registry for ACowork, and the source of
-**hub.acowork.ai**. One directory per agent; every binary artifact
-(`.agent` package, `index.json`, sha256 digests, signatures) is
+Community bot registry for ACowork, and the source of
+**hub.acowork.ai**. One directory per bot; every binary artifact
+(`.bot` package, `index.json`, sha256 digests, signatures) is
 produced by CI and is **never** committed to this repository — not on `main`,
 not on a PR branch.
 
 ## Why this repo exists
 
-The ACowork main repo ships a handful of first-party agents under
+The ACowork main repo ships a handful of first-party bots under
 `agents/<name>-agent/`. Those are the upstream source of truth and they are
 built and signed by the main repo's release pipeline.
 
@@ -17,13 +17,13 @@ This repo is the **community counterpart**:
 | | Main repo (`agents/<name>-agent/`) | This repo (`agents/<owner>/<name>`) |
 |---|---|---|
 | Authors | ACowork core team | community contributors |
-| Directory | flat, one dir per agent | owner-namespaced, one dir per agent |
+| Directory | flat, one dir per bot | owner-namespaced, one dir per bot |
 | Provenance | built in-repo, signed by platform keys | built in CI, signed by the channel key |
 | Index | built by the main repo | `index.json` for the community registry |
 
-The platform's own agents are mirrored here under `agents/official/`, keeping
+The platform's own bots are mirrored here under `agents/official/`, keeping
 their original `com.acowork.*` ids, so an installed package stays
-upgradeable instead of forking into a second, differently-named agent. The
+upgradeable instead of forking into a second, differently-named bot. The
 main repo remains their source of truth.
 
 **`agents/official/` is a generated directory.** `tools/sync-official.py`
@@ -48,7 +48,7 @@ pull request ─▶ validate + review ─▶ merge to main
                                    │            │
                                    ▼            ▼
                           GitHub Release    hub.acowork.ai
-                       (index.json, .agent)  (the page)
+                       (index.json, .bot)    (the page)
 ```
 
 The Release and the website come from the **same build**, so the page, the
@@ -61,10 +61,10 @@ index and the downloadable packages are always the same snapshot. Full walkthrou
 nothing else.** Every field in it exists in the main repo with the same name
 and type. Hub-specific metadata lives in `hub.json`, next to it.
 
-The main repo re-serialises the parsed manifest when a user clones an agent,
+The main repo re-serialises the parsed manifest when a user clones a bot,
 and serde silently drops fields it does not know — so a hub-only field
 written into `manifest.toml` would vanish the first time somebody cloned the
-agent in the app. A separate file has no such failure mode.
+bot in the app. A separate file has no such failure mode.
 
 Full rationale: [docs/package-contract.md](docs/package-contract.md).
 
@@ -118,19 +118,19 @@ python tools/pack.py agents/<owner>/<name> --out build/ --key .keys/dev.key
 python tools/build-index.py --out build/index.json --packages build/
 
 # 5. verify what you built
-python tools/pack.py --verify build/<agent_id>.agent
+python tools/pack.py --verify build/<agent_id>.bot
 ```
 
 Python 3.11+ is required (`tomllib`). `jsonschema` and `cryptography` are
 needed for full validation and signing; `pip install jsonschema cryptography`.
 
-## How an agent is filed
+## How a bot is filed
 
 The hub has two browse axes and **neither is declared in a package**:
 
-- **category** — one per agent, the primary navigation. Derived by mapping
+- **category** — one per bot, the primary navigation. Derived by mapping
   the package's `labels` through `schema/catalog.json`.
-- **labels** — many per agent, the cross-cutting filter. The author's own
+- **labels** — many per bot, the cross-cutting filter. The author's own
   words, taken straight from `manifest.toml`.
 
 ```toml
@@ -150,7 +150,7 @@ Details: [docs/catalog.md](docs/catalog.md).
    the main repo's own manifest parser over your package, and a headless
    browser check of the site it produces.
 3. `review-gate.yml` requires a maintainer approval label before merge.
-4. `publish.yml` runs on `main`: it packs every agent, signs it with the
+4. `publish.yml` runs on `main`: it packs every bot, signs it with the
    channel key, regenerates `index.json`, builds the site, and publishes both
    a GitHub Release (packages + index) and the site at `hub.acowork.ai`.
 
@@ -159,7 +159,7 @@ Details: [docs/publishing.md](docs/publishing.md).
 ## Trust model — read this before you publish
 
 **There is no official badge in this project.** No mechanism here marks an
-agent as official, verified or endorsed, and none is planned. What the
+bot as official, verified or endorsed, and none is planned. What the
 signature establishes is exactly two things: the package was not altered
 after signing, and it was signed by the official channel (its signer
 fingerprint is in [`registry/trusted-keys.json`](registry/trusted-keys.json)).
@@ -170,14 +170,14 @@ account it is — and is never rendered as a badge. See
 
 The `agent_id` prefixes `com.acowork.`, `acowork.` and `official.` are
 reserved for the platform: a community submission using them is rejected. The
-platform's own agents are the exception, and they are pinned by id in
+platform's own bots are the exception, and they are pinned by id in
 [`registry/official-publishers.json`](registry/official-publishers.json) —
 claiming the platform identity takes a reviewed change to that file, not just
 a directory name.
 
 ## No binaries
 
-An agent package never carries a binary. Its whole capability surface is
+A bot package never carries a binary. Its whole capability surface is
 prompt, skills, built-in tools and MCP — and MCP arrives as a server the
 user installs separately, never as an executable inside the package. The
 main repo rejects inline stdio MCP declarations for the same reason, and
@@ -197,5 +197,5 @@ signature requirements and review criteria.
 
 ## License
 
-Repository: [MIT](LICENSE). Each agent declares its own license in
+Repository: [MIT](LICENSE). Each bot declares its own license in
 `hub.json`; see [docs/publishing.md](docs/publishing.md#licensing).

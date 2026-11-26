@@ -1,6 +1,6 @@
 # The package contract: manifest.toml vs hub.json
 
-A community agent package has two metadata files, and the split between them
+A community bot package has two metadata files, and the split between them
 is not a matter of taste — it is forced by how the main repo treats a
 manifest.
 
@@ -14,14 +14,14 @@ manifest.
 The main repo parses a manifest into `acowork_core::AgentManifest` and
 re-serialises it with `to_toml()` in several places — most visibly in
 `core/acowork-node/src/package/clone.rs`, which rewrites `manifest.toml`
-when a user clones an agent.
+when a user clones a bot.
 
 `AgentManifest` does not use `#[serde(deny_unknown_fields)]`. Serde
 therefore **silently drops** any field it does not know. A hub-only field
 written into `manifest.toml` would therefore:
 
 1. survive the packaging step, so the hub could read it at index time;
-2. vanish the first time a user clones the agent in the app;
+2. vanish the first time a user clones the bot in the app;
 3. leave the hub's index describing a package that no longer contains the
    metadata it was derived from.
 
@@ -39,7 +39,7 @@ rejects a hub-only field appearing in `manifest.toml`.
 
 A faithful mirror of `acowork_core::AgentManifest`. Every property in
 `schema/manifest.schema.json` exists in the main repo with the same name
-and type. The fields a community agent actually uses:
+and type. The fields a community bot actually uses:
 
 | Field | Why it is there |
 |---|---|
@@ -49,9 +49,9 @@ and type. The fields a community agent actually uses:
 | `runtime_version` | Which runtime the package needs. |
 | `labels` | Retrieval tags (ADR-104). The hub derives the browse category from these. |
 | `avatar` | Package avatar path. |
-| `permissions`, `tools` | What the agent may do and which built-in tools it opts into. |
+| `permissions`, `tools` | What the bot may do and which built-in tools it opts into. |
 | `mcp_servers` | Recommended MCP servers. A recommendation, not a dependency. |
-| `capabilities` | Outward contracts other agents address through intents. `skills` links a capability to the skills that implement it. |
+| `capabilities` | Outward contracts other bots address through intents. `skills` links a capability to the skills that implement it. |
 | `llm`, `memory`, `config`, `resources`, `sandbox`, `skills` | Runtime defaults. |
 
 The schema sets `additionalProperties: false`, so a typo or a stray field
@@ -65,8 +65,8 @@ cannot answer otherwise.
 | Field | The question it answers |
 |---|---|
 | `publisher` | **Who published this, and who do we contact?** The hub's account identity. The `id` must match the `agents/<owner>/` directory segment — a submission may only publish under its own account. |
-| `license` | **What are the terms?** SPDX expression for the agent's own content. The repository `LICENSE` covers the tooling; this covers the agent. The hub refuses to publish an agent with no license. |
-| `repository` | **Where is the source?** The site links to it so a user can read the code before installing, and so an agent can be forked rather than only consumed. |
+| `license` | **What are the terms?** SPDX expression for the bot's own content. The repository `LICENSE` covers the tooling; this covers the bot. The hub refuses to publish a bot with no license. |
+| `repository` | **Where is the source?** The site links to it so a user can read the code before installing, and so a bot can be forked rather than only consumed. |
 | `deprecated` | **Is this still recommended?** A notice with a reason and an optional successor. The package stays published and verifiable; the site surfaces the warning. Removing it from the index instead would make it uninstallable and lose the history. |
 
 `publisher.homepage` and the top-level `homepage` round out the link set —
@@ -95,7 +95,7 @@ agents/<owner>/<name>/
 
 ## No binaries
 
-An agent package never carries a binary. The agent's whole capability
+A bot package never carries a binary. The bot's whole capability
 surface is:
 
 1. **prompt** — `prompts/*.md`
