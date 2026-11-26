@@ -13,7 +13,7 @@
 #   data/meta.json            stable URL, changes every publish   -> revalidate
 #   data/pages/*, details/*   requested as ?v=<build>             -> cache forever
 #   data/index.json           stable URL, machine endpoint        -> revalidate
-#   downloads/*.agent         stable URL, replaced by new version -> revalidate
+#   downloads/*.bot           stable URL, replaced by new version -> revalidate
 #   assets/*                  fixed names from styles.css         -> revalidate
 #
 # A file whose URL never changes cannot be cached long: the next publish would

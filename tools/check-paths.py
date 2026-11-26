@@ -152,7 +152,7 @@ def main() -> int:
 
     for rel in tracked_files():
         p = REPO_ROOT / rel
-        if p.suffix.lower() in {".png", ".agent", ".jpg", ".jpeg", ".woff", ".woff2", ".zip"}:
+        if p.suffix.lower() in {".png", ".bot", ".agent", ".jpg", ".jpeg", ".woff", ".woff2", ".zip"}:
             continue
         try:
             txt = p.read_text(encoding="utf-8")

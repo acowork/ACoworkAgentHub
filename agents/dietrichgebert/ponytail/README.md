@@ -7,7 +7,7 @@ The best code is the code you never wrote.
 ```bash
 acowork install github.ponytail
 
-Or download the signed `.agent` package from the hub and import it in
+Or download the signed `.bot` package from the hub and import it in
 the Desktop App. The package is signed by the official channel key —
 the app verifies the signature on install.
 

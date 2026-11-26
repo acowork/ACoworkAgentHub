@@ -136,11 +136,11 @@ def main() -> int:
         rel = agent_dir.relative_to(REPO_ROOT)
         manifest = tomllib.loads((agent_dir / "manifest.toml").read_text(encoding="utf-8"))
         agent_id = manifest["agent_id"]
-        target = out_dir / f"{agent_id}.agent"
+        target = out_dir / f"{agent_id}.bot"
 
         # Reuse only when the published bytes are provably this source tree.
         if reuse_dir is not None and (changed is None or agent_id not in changed):
-            candidate = reuse_dir / f"{agent_id}.agent"
+            candidate = reuse_dir / f"{agent_id}.bot"
             if candidate.is_file() and package_matches_source(candidate, agent_dir):
                 signer = package_signer_fingerprint(candidate)
                 if signer != key_fingerprint:

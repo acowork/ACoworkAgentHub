@@ -44,6 +44,7 @@ CNAME    text eol=lf
 *.woff2 binary
 *.woff binary
 *.zip  binary
+*.bot   binary
 *.agent binary
 
 # --- package content, again, so it wins over the patterns above ---

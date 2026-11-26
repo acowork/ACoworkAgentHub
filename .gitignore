@@ -3,6 +3,7 @@ index.json
 agents.json
 build/
 dist/
+*.bot
 *.agent
 *.sha256
 *.sig

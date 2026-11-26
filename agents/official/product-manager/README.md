@@ -7,7 +7,7 @@ A product manager agent skilled in product strategy, user research, PRD writing,
 ```bash
 acowork install com.acowork.product-manager
 
-Or download the signed `.agent` package from the hub and import it in
+Or download the signed `.bot` package from the hub and import it in
 the Desktop App. The package is signed by the official channel key —
 the app verifies the signature on install.
 

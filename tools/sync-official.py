@@ -132,7 +132,7 @@ COPIED_DIRS = ("assets", "prompts", "skills")
 class Diff(NamedTuple):
     """One difference between the mirror and upstream, tagged by what it affects.
 
-    `package` — a byte that goes into the published `.agent`. This is the one
+    `package` — a byte that goes into the published `.bot`. This is the one
     that decides whether a user installs what the main repo ships.
     `owned`   — hub-generated metadata (hub.json, README.md, LICENSE).
     """
@@ -276,7 +276,7 @@ def build_readme(manifest: dict, pkg: str, source_dir: Path) -> str:
     L.append("```bash")
     L.append(f"acowork install {manifest['agent_id']}")
     L.append("")
-    L.append("Or download the signed `.agent` package from the hub and import it in")
+    L.append("Or download the signed `.bot` package from the hub and import it in")
     L.append("the Desktop App. The package is signed by the official channel key —")
     L.append("the app verifies the signature on install.")
     L.append("")
@@ -331,7 +331,7 @@ def sync_one(
     """Mirror one package. Returns the differences found, tagged by kind.
 
     The tag is not decoration. `package` diffs are bytes that end up inside
-    the published `.agent`, so they are the only thing that can make a user
+    the published `.bot`, so they are the only thing that can make a user
     install something the main repo has already replaced. `owned` diffs are
     hub-generated metadata — and `hub.json` necessarily differs whenever you
     compare against a different ref, because it records the ref. Counting

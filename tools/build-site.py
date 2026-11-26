@@ -10,7 +10,7 @@ Pages (or any static host) can serve as-is:
       hub.js, styles.css    the page's own assets
       assets/               logo + fonts
       data/index.json       the registry index
-      downloads/*.agent     the signed packages
+      downloads/*.bot       the signed packages
       avatars/*             the agent avatars
 
 It also embeds a snapshot of the index into index.html, so the page still
@@ -307,7 +307,7 @@ def lint_headers(site_root: Path, out_dir: Path) -> list[str]:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--index", required=True, help="path to the generated index.json")
-    ap.add_argument("--packages", required=True, help="directory holding the signed .agent packages")
+    ap.add_argument("--packages", required=True, help="directory holding the signed .bot packages")
     ap.add_argument("--agents", default=None,
                     help="agents/ directory (default: the repo's agents/) — used to resolve avatar files")
     ap.add_argument("--out", required=True, help="output directory for the deployable site")
@@ -360,7 +360,7 @@ def main() -> int:
     shutil.copytree(SITE_DIR / "assets", out_dir / "assets", dirs_exist_ok=True)
 
     # Cloudflare Pages reads `_headers` from the deployed root to set the
-    # response headers — without it a browser may try to render an .agent
+    # response headers — without it a browser may try to render a .bot
     # package as text instead of downloading it.
     headers = SITE_DIR / "_headers"
     if headers.is_file():
@@ -377,7 +377,7 @@ def main() -> int:
     (out_dir / "downloads").mkdir(exist_ok=True)
     for entry in entries:
         agent_id = entry["agent_id"]
-        pkg = packages_dir / f"{agent_id}.agent"
+        pkg = packages_dir / f"{agent_id}.bot"
         if not pkg.is_file():
             fail(f"package for `{agent_id}` not found at {pkg}")
         shutil.copy2(pkg, out_dir / "downloads" / pkg.name)

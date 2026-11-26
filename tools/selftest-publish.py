@@ -123,7 +123,7 @@ def run_tool(root: Path, tool: str, *args: str,
 def make_fixture(dest: Path) -> Path:
     def ignore(dir_path: str, names: list[str]) -> set[str]:
         skip = {n for n in names if n in SKIP_DIRS or n in SKIP_FILES}
-        skip |= {n for n in names if n.endswith(".agent")}
+        skip |= {n for n in names if n.endswith((".agent", ".bot"))}
         return skip
 
     shutil.copytree(REPO_ROOT, dest, ignore=ignore)
@@ -339,7 +339,7 @@ def main() -> int:
           out[-300:])
     same = all(
         (dist1 / p.name).read_bytes() == (dist2 / p.name).read_bytes()
-        for p in dist1.glob("*.agent")
+        for p in dist1.glob("*.bot")
     )
     check(same, "reused bytes are identical to the published ones")
 
@@ -467,7 +467,7 @@ def main() -> int:
         # and the test would keep passing on the developer's machine while
         # failing on Linux.
         built = exact_child(out_dir.parent, out_dir.name)
-        det[label] = {f.name: f.read_bytes() for f in sorted(built.glob("*.agent"))}
+        det[label] = {f.name: f.read_bytes() for f in sorted(built.glob("*.bot"))}
     check(len(det["a"]) == total, f"determinism build produced all {total} packages",
           f"got {len(det['a'])}")
     check(det["a"] == det["b"], "same epoch twice -> byte-identical packages",

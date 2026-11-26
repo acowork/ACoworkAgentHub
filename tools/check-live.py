@@ -119,8 +119,8 @@ def main() -> int:
             check(r["headers"].get("x-content-type-options") == "nosniff", "   nosniff")
 
         print("\n== packages served == released")
-        pkgs = sorted(n for n in assets if n.endswith(".agent"))
-        check(bool(pkgs), "release carries .agent assets", "%d package(s)" % len(pkgs))
+        pkgs = sorted(n for n in assets if n.endswith(".bot"))
+        check(bool(pkgs), "release carries .bot assets", "%d package(s)" % len(pkgs))
         for name in pkgs[:3]:
             r = fget("/downloads/" + name)
             check(r["status"] == 200, "GET /downloads/%s -> 200" % name,

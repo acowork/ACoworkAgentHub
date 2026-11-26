@@ -89,7 +89,7 @@ def sha256_text(data: bytes) -> str:
     platform switch and republish byte-identical packages.
 
     Package content is still hashed byte-exact by pack.collect_files, because
-    those bytes ship inside the .agent file.
+    those bytes ship inside the .bot file.
     """
     return sha256_bytes(data.replace(b"\r\n", b"\n").replace(b"\r", b"\n"))
 
@@ -174,7 +174,7 @@ def build_digest_doc(packages_dir: Path | None, key_path: Path | None) -> dict:
             "path": agent_dir.relative_to(REPO_ROOT).as_posix(),
         }
         if packages_dir is not None:
-            pkg = packages_dir / f"{agent_id}.agent"
+            pkg = packages_dir / f"{agent_id}.bot"
             if pkg.is_file():
                 entry["package_sha256"] = sha256_bytes(pkg.read_bytes())
         agents[agent_id] = entry

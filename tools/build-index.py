@@ -224,10 +224,10 @@ def build_entry(agent_dir: Path, catalog: dict, packages_dir: Path | None) -> di
 
     pkg_path = None
     if packages_dir is not None:
-        pkg_path = packages_dir / f"{m['agent_id']}.agent"
+        pkg_path = packages_dir / f"{m['agent_id']}.bot"
     if pkg_path is None or not pkg_path.is_file():
         fail(
-            f"{owner}/{name}: signed package {m['agent_id']}.agent not found in {packages_dir}. "
+            f"{owner}/{name}: signed package {m['agent_id']}.bot not found in {packages_dir}. "
             f"Build it first: python tools/pack.py agents/{owner}/{name} --out {packages_dir}"
         )
 
@@ -236,7 +236,7 @@ def build_entry(agent_dir: Path, catalog: dict, packages_dir: Path | None) -> di
         fail(f"{pkg_path.name} is empty")
 
     entry["package"] = {
-        "file": f"downloads/{m['agent_id']}.agent",
+        "file": f"downloads/{m['agent_id']}.bot",
         "size_bytes": len(payload),
         "sha256": hashlib.sha256(payload).hexdigest(),
     }
@@ -314,7 +314,7 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", default="build/index.json", help="output path for index.json")
     ap.add_argument("--packages", default=None,
-                    help="directory holding the built .agent packages (default: <out dir>/..)")
+                    help="directory holding the built .bot packages (default: <out dir>/..)")
     ap.add_argument("--repo", default=None, help="repository URL recorded in the index")
     args = ap.parse_args()
 

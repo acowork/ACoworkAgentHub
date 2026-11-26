@@ -451,7 +451,8 @@ def check_official_claim(manifest: dict | None, hub: dict | None, owner: str,
 def check_hygiene(agent_dir: Path, where: str, report: Report) -> None:
     policy = load_json(SCHEMA_DIR / "catalog.json").get("package_policy", {})
     forbidden = set(policy.get("forbidden_binary_extensions", []))
-    forbidden |= {".agent", ".zip", ".tar", ".gz", ".tgz", ".7z", ".rar"}
+    # Both suffixes: a package artifact is an artifact whichever name it carries.
+    forbidden |= {".bot", ".agent", ".zip", ".tar", ".gz", ".tgz", ".7z", ".rar"}
 
     for path in agent_dir.rglob("*"):
         if not path.is_file():

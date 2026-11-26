@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pack an agent directory into a signed .agent package.
+"""Pack an agent directory into a signed .bot package.
 
 The package layout and the Signing Block V2 layout are byte-compatible with
 the ACowork main repo (core/acowork-sign), so packages produced here verify
@@ -14,7 +14,7 @@ without any format change. See docs/trust-model.md.
 Usage:
     python tools/pack.py agents/<owner>/<name> --out build/
     python tools/pack.py agents/<owner>/<name> --out build/ --key .keys/registry.key
-    python tools/pack.py --verify build/<agent_id>.agent
+    python tools/pack.py --verify build/<agent_id>.bot
 
 Exit codes:
     0  ok
@@ -63,7 +63,9 @@ def collect_files(agent_dir: Path) -> list[tuple[str, Path]]:
         parts = rel.parts
         if any(part in PACKAGE_EXCLUDE_DIRS for part in parts):
             continue
-        if path.suffix.lower() in {".agent", ".key", ".pem"}:
+        # Both suffixes: a stale .agent left in a source tree must never be
+        # packed into a .bot (size bloat + a nested package).
+        if path.suffix.lower() in {".bot", ".agent", ".key", ".pem"}:
             continue
         out.append(("/".join(parts), path))
     out.sort(key=lambda item: item[0])
@@ -172,11 +174,11 @@ def pack_agent(agent_dir: Path, out_dir: Path, key_path: Path | None,
 
     out_dir.mkdir(parents=True, exist_ok=True)
     agent_id = manifest["agent_id"]
-    pkg_path = out_dir / f"{agent_id}.agent"
+    pkg_path = out_dir / f"{agent_id}.bot"
     pkg_path.write_bytes(signed_bytes)
 
     sha = hashlib.sha256(signed_bytes).hexdigest()
-    (out_dir / f"{agent_id}.agent.sha256").write_text(f"{sha}  {agent_id}.agent\n", encoding="utf-8")
+    (out_dir / f"{agent_id}.bot.sha256").write_text(f"{sha}  {agent_id}.bot\n", encoding="utf-8")
 
     return {
         "agent_id": agent_id,
@@ -194,7 +196,7 @@ def pack_agent(agent_dir: Path, out_dir: Path, key_path: Path | None,
 
 
 def verify_package(pkg_path: Path) -> dict:
-    """Verify a .agent package produced by this repo (or the main repo).
+    """Verify a .bot package produced by this repo (or the main repo).
 
     Answers the two questions the registry cares about:
 
@@ -272,9 +274,9 @@ def verify_package(pkg_path: Path) -> dict:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("agent_dir", nargs="?", help="agent directory to pack")
-    ap.add_argument("--out", default="build", help="output directory for .agent packages")
+    ap.add_argument("--out", default="build", help="output directory for .bot packages")
     ap.add_argument("--key", help="Ed25519 seed file (32 raw bytes) used to sign")
-    ap.add_argument("--verify", help="verify an existing .agent package instead of packing")
+    ap.add_argument("--verify", help="verify an existing .bot package instead of packing")
     ap.add_argument("--build-epoch", type=int,
                     help="override the build timestamp (seconds since epoch); "
                          "default: SOURCE_DATE_EPOCH, else the last commit touching the dir")

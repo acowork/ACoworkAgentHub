@@ -161,7 +161,7 @@ def main() -> int:
             if local_verify_rejects(package):
                 print("fail  in-repo verifier rejected the pristine package")
                 return 1
-            tampered = tmp / "tampered.agent"
+            tampered = tmp / "tampered.bot"
             tamper_package(package, tampered)
             if not local_verify_rejects(tampered):
                 print("fail  in-repo verifier accepted a tampered package")
@@ -176,7 +176,7 @@ def main() -> int:
             print("fail  verifier did not report VALID")
             return 1
 
-        tampered = tmp / "tampered.agent"
+        tampered = tmp / "tampered.bot"
         tamper_package(package, tampered)
         code, out = run_verify(verify, tampered)
         print(f"ok  verifier on tampered package -> exit {code}")

@@ -116,7 +116,7 @@ jobs:
         run: |
           mkdir -p .ci/published
           if gh release view "$ROLLING_TAG" >/dev/null 2>&1; then
-            gh release download "$ROLLING_TAG" -p '*.agent' --dir .ci/published || true
+            gh release download "$ROLLING_TAG" -p '*.bot' --dir .ci/published || true
             gh release download "$ROLLING_TAG" -p 'registry.digest.json' --dir .ci || true
             gh release download "$ROLLING_TAG" -p 'deployed-commit' --dir .ci || true
           else
@@ -170,8 +170,8 @@ jobs:
           # The site bundles the packages it links to, so "nothing changed"
           # still needs them present — they are simply the already published
           # copies rather than freshly signed ones.
-          cp .ci/published/*.agent dist/ 2>/dev/null || {
-            gh release download "$ROLLING_TAG" -p '*.agent' --dir dist
+          cp .ci/published/*.bot dist/ 2>/dev/null || {
+            gh release download "$ROLLING_TAG" -p '*.bot' --dir dist
           }
           gh release download "$ROLLING_TAG" -p 'index.json' --dir dist || true
           if [ -f .ci/registry.digest.json ]; then
@@ -206,7 +206,7 @@ jobs:
         run: |
           # Checksums over exactly what the release carries, so a consumer can
           # verify a download without trusting the transport.
-          (cd dist && sha256sum *.agent index.json > SHA256SUMS)
+          (cd dist && sha256sum *.bot index.json > SHA256SUMS)
 
       # One rolling release, reused. Assets are clobbered by name and stale
       # ones deleted, so an agent that leaves the registry leaves its package
@@ -221,15 +221,15 @@ jobs:
               --packages dist --key .keys/registry.key
           if ! gh release view "$ROLLING_TAG" >/dev/null 2>&1; then
             gh release create "$ROLLING_TAG" \
-              --title "Agent Hub registry (rolling)" \
+              --title "Bot Hub registry (rolling)" \
               --notes "Current published snapshot. Replaced in place by publish.yml; the content gate in this workflow decides when that happens." \
               --target "$GITHUB_SHA"
           fi
-          gh release upload "$ROLLING_TAG" dist/*.agent dist/index.json dist/SHA256SUMS dist/registry.digest.json --clobber
+          gh release upload "$ROLLING_TAG" dist/*.bot dist/index.json dist/SHA256SUMS dist/registry.digest.json --clobber
 
           # Prune: anything on the release that this build does not produce.
           gh release view "$ROLLING_TAG" --json assets -q '.assets[].name' | sort > .ci/remote.txt
-          { (cd dist && ls *.agent index.json SHA256SUMS registry.digest.json) ; echo deployed-commit ; }             | sort > .ci/local.txt
+          { (cd dist && ls *.bot index.json SHA256SUMS registry.digest.json) ; echo deployed-commit ; }               | sort > .ci/local.txt
           comm -23 .ci/remote.txt .ci/local.txt | while read -r stale; do
             echo "deleting stale release asset: $stale"
             gh release delete-asset "$ROLLING_TAG" "$stale" --yes

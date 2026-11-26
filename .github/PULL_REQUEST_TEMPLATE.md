@@ -32,7 +32,7 @@ Closes #
 - [ ] The avatar is a square `.png` or `.svg`.
 - [ ] Declared permissions are the minimum the agent needs; `Shell` /
       `Sandbox` are only used when `tier = advanced`.
-- [ ] **No binaries, `.agent` packages, `index.json`, checksum files,
+- [ ] **No binaries, `.bot` packages, `index.json`, checksum files,
       signatures or keys are included in this PR.**
 - [ ] The description says what the agent actually does (no marketing
       padding).

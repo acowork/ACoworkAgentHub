@@ -102,7 +102,7 @@ def build_fixture_site(real_site: Path, count: int, workdir: Path) -> Path:
         clone["display_name"] = f"Fixture {i:04d}"
         # Vary the category so a facet filter still narrows in the fixture.
         clone["package"] = dict(clone.get("package") or {})
-        clone["package"]["file"] = f"downloads/{agent_id}.agent"
+        clone["package"]["file"] = f"downloads/{agent_id}.bot"
         entries.append(clone)
     index["agents"] = entries
 
@@ -110,11 +110,11 @@ def build_fixture_site(real_site: Path, count: int, workdir: Path) -> Path:
     fixture_index.write_text(json.dumps(index, ensure_ascii=False), encoding="utf-8")
 
     # build-site.py refuses to emit a site whose packages are missing.
-    real_pkg = next((real_site / "downloads").glob("*.agent"))
+    real_pkg = next((real_site / "downloads").glob("*.bot"))
     pkgs = workdir / "packages"
     pkgs.mkdir()
     for entry in entries:
-        shutil.copy2(real_pkg, pkgs / f"{entry['agent_id']}.agent")
+        shutil.copy2(real_pkg, pkgs / f"{entry['agent_id']}.bot")
 
     out = workdir / "site"
     result = subprocess.run(
@@ -212,6 +212,10 @@ def check_real(page, base: str, expected: int, errors: list[str]) -> None:
         errors.append("clicking a card did not open the detail panel")
     if page.locator(".ah-detail__sha").count() == 0:
         errors.append("the detail panel shows no sha256/signer — heavy fields did not load")
+    # The one user-visible place the package extension is spelled out.
+    dl_label = page.locator(".ah-detail a.btn--primary").first.inner_text().strip()
+    if dl_label != "Download .bot":
+        errors.append(f"download action is labelled {dl_label!r}, expected 'Download .bot'")
     if page.locator("#ah-modal").get_attribute("hidden") is not None:
         errors.append("the detail modal did not open")
 
@@ -510,6 +514,29 @@ def main() -> int:
                     f"[check-site] fixture: {fmeta['total']} agents -> "
                     f"{fmeta['page_count']} shards of {fmeta['page_size']}"
                 )
+            finally:
+                shutil.rmtree(workdir, ignore_errors=True)
+
+        # Suite 3: the count is a sentence and the plural is part of it. The
+        # `n === 1 ? '' : 's'` join is easy to get wrong in the direction that
+        # ships "1 bots" forever, and nothing else on the page would notice.
+        for count, want in ((1, "1 bot"), (2, "2 bots")):
+            workdir = Path(tempfile.mkdtemp(prefix="hubcount"))
+            try:
+                tiny = build_fixture_site(site, count, workdir)
+                server3, base3 = serve(tiny)
+                page3 = browser.new_page(viewport={"width": 1280, "height": 900})
+                page3.goto(base3)
+                page3.wait_for_function(
+                    "() => document.querySelector('#ah-status').textContent.trim() !== ''",
+                    timeout=15000,
+                )
+                got = page3.locator("#ah-status").inner_text().strip().split(" \u00b7 ")[0]
+                if got != want:
+                    errors.append(f"status for a {count}-bot registry is {got!r}, expected {want!r}")
+                page3.close()
+                server3.shutdown()
+                print(f"[check-site] count copy: {count} -> {got!r}")
             finally:
                 shutil.rmtree(workdir, ignore_errors=True)
 
