@@ -64,7 +64,7 @@ cannot answer otherwise.
 
 | Field | The question it answers |
 |---|---|
-| `publisher` | **Who published this, and who do we contact?** The hub's account identity. The `id` must match the `agents/<owner>/` directory segment — a submission may only publish under its own account. |
+| `publisher` | **Who published this, and who do we contact?** The hub's account identity. The `id` must match the `bots/<owner>/` directory segment — a submission may only publish under its own account. |
 | `license` | **What are the terms?** SPDX expression for the bot's own content. The repository `LICENSE` covers the tooling; this covers the bot. The hub refuses to publish a bot with no license. |
 | `repository` | **Where is the source?** The site links to it so a user can read the code before installing, and so a bot can be forked rather than only consumed. |
 | `deprecated` | **Is this still recommended?** A notice with a reason and an optional successor. The package stays published and verifiable; the site surfaces the warning. Removing it from the index instead would make it uninstallable and lose the history. |
@@ -79,7 +79,7 @@ badge — see [trust-model.md](trust-model.md).
 ## Package layout
 
 ```
-agents/<owner>/<name>/
+bots/<owner>/<name>/
 ├── manifest.toml      # main-repo contract
 ├── hub.json           # hub contract
 ├── README.md          # what the agent does, for a human deciding to install it

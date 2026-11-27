@@ -65,7 +65,7 @@ repo to a temp directory, makes two throwaway keys, and proves the incremental
 rules end to end — cold build, unchanged rebuild reusing everything, a changed
 list that lies, a key rotation, a builder-only change, and line endings. It
 never touches your working tree, which is the point: the earlier version of
-those checks edited `agents/**` in place and restored it with `git checkout`.
+those checks edited `bots/**` in place and restored it with `git checkout`.
 
 ### 1.3 View it locally
 
@@ -110,10 +110,10 @@ python tools/registry-digest.py --compare dist/registry.digest.json \
     --packages dist --key .keys/ci/registry.key; echo "exit=$?"
 
 # touch one bot -> exit 0 and it names exactly that bot
-printf '\n' >> agents/official/product-manager/prompts/system.md
+printf '\n' >> bots/official/product-manager/prompts/system.md
 python tools/registry-digest.py --compare dist/registry.digest.json \
     --packages dist --key .keys/ci/registry.key --changed-out /tmp/changed.txt
-git checkout agents/official/product-manager/prompts/system.md
+git checkout bots/official/product-manager/prompts/system.md
 ```
 
 And that reuse is decided by content, not by the changed list — an empty list
@@ -121,11 +121,11 @@ claiming "nothing changed" must still repack a modified bot:
 
 ```sh
 : > /tmp/none.txt
-printf '\n' >> agents/official/product-manager/prompts/system.md
+printf '\n' >> bots/official/product-manager/prompts/system.md
 python tools/ci-pack-all.py --out /tmp/reuse --key .keys/ci/registry.key \
     --reuse dist --changed /tmp/none.txt | tail -1
 # -> "1 packed, N-1 reused" (the modified bot is repacked anyway)
-git checkout agents/official/product-manager/prompts/system.md
+git checkout bots/official/product-manager/prompts/system.md
 ```
 
 And that a **key rotation is never treated as "unchanged"**: content matching
@@ -363,7 +363,7 @@ anything, the gate is broken** and that is a bug worth stopping on.
 | Packages install but read as "unknown signer" | same as above, discovered late | `python tools/check-key.py` |
 | `Deploy the site to Cloudflare Pages` fails | Cloudflare secrets missing | add both; the step fails loudly rather than leaving a stale site |
 | `Interop check` fails | the main repo's parser rejects a hub package | the mirror drifted or a hub-only field leaked into `manifest.toml` — move it to `hub.json` |
-| `Check the mirror matches the commit it claims` fails | `agents/official/**` was hand-edited, or `hub.json`'s claim does not match the bytes beside it | re-sync: `python tools/sync-official.py --main-repo ../main-repo`. If the intent was a content change, it belongs in the main repo, not here |
+| `Check the mirror matches the commit it claims` fails | `bots/official/**` was hand-edited, or `hub.json`'s claim does not match the bytes beside it | re-sync: `python tools/sync-official.py --main-repo ../main-repo`. If the intent was a content change, it belongs in the main repo, not here |
 | `Fetch the commits the mirror claims` fails | a claimed commit is not reachable in the shallow clone of the main repo | the claim names a commit that was never pushed, or GitHub refused a sha fetch — check `hub.json.mirror.source_commit` against `acowork/ACowork` |
 | `Report whether master has moved past the mirror` prints a warning | the main repo has newer bot content than what this hub publishes | run the sync and merge the mirror PR. This is a notice, not a failure — it must never block an unrelated hub PR |
 | Page renders empty in production | shards 404, or `_headers` caching an old `meta.json` | check §2.4 header output |
@@ -381,7 +381,7 @@ npx --yes wrangler@3 pages deploy dist/site --project-name acowork-agent-hub --b
 ```
 
 For the registry itself, prefer **fix-forward**: the rolling release carries one
-snapshot, so an "unpublish" means republishing from a commit whose `agents/`
+snapshot, so an "unpublish" means republishing from a commit whose `bots/`
 tree is what you want. The signed packages for that commit are reproducible
 from source plus the channel key — which is exactly what the content gate
 records in `registry.digest.json`.

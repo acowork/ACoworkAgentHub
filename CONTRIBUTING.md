@@ -21,10 +21,10 @@ them appear in a bot directory.
 
 | Directory | Who writes it | Hand-editable? |
 |---|---|---|
-| `agents/<your-handle>/<name>/` | the author, in a PR | yes |
-| `agents/official/<name>/` | `tools/sync-official.py`, from the ACowork main repo | **no** |
+| `bots/<your-handle>/<name>/` | the author, in a PR | yes |
+| `bots/official/<name>/` | `tools/sync-official.py`, from the ACowork main repo | **no** |
 
-`agents/official/` is a generated mirror of the main repo's `agents/<name>-agent/`
+`bots/official/` is a generated mirror of the main repo's `bots/<name>-bot/`
 source trees. Every file in it — including `hub.json`, `README.md` and
 `LICENSE` — is produced by the sync tool, which records the upstream commit
 in `hub.json.mirror.source_commit`. A PR that edits it directly is rejected by
@@ -33,7 +33,7 @@ claims, byte for byte), and the next sync overwrites it anyway.
 
 So a change to a platform bot is two commits, in this order:
 
-1. **the main repo**: edit `agents/<name>-agent/` and bump `version` in its
+1. **the main repo**: edit `bots/<name>-bot/` and bump `version` in its
    `manifest.toml`;
 2. **this repo**: run `tools/sync-official.py --main-repo <path>` (or
    `dev/common/sync-hub-mirror.sh` from the main repo, which also opens the
@@ -50,7 +50,7 @@ Step 2 has no judgement in it. If it does, the change belonged in step 1.
 3. **Copy the template**:
 
    ```bash
-   cp -r agents/_template agents/<your-github-handle>/<your-agent-name>
+   cp -r bots/_template bots/<your-github-handle>/<your-agent-name>
    ```
 
 4. **Write the bot**:
@@ -130,7 +130,7 @@ Optional: `publisher.display_name`, `publisher.homepage`, `homepage`,
 
 Full rules with rationale: [`docs/naming.md`](docs/naming.md). Short version:
 
-- One bot per directory: `agents/<owner>/<name>/`.
+- One bot per directory: `bots/<owner>/<name>/`.
 - `owner` and `name` are lowercase kebab-case.
 - `agent_id` must not use a reserved prefix (`com.acowork.`, `acowork.`,
   `official.`). The validator rejects these.

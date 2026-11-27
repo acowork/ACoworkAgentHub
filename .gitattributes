@@ -11,11 +11,11 @@
 * -text
 
 # --- package content: never touched ---
-agents/**/manifest.toml  -text
-agents/**/prompts/**    -text
-agents/**/skills/**     -text
-agents/**/assets/**     -text
-agents/**/hub.json      -text
+bots/**/manifest.toml  -text
+bots/**/prompts/**    -text
+bots/**/skills/**     -text
+bots/**/assets/**     -text
+bots/**/hub.json      -text
 
 # --- repository text: LF ---
 *.md   text eol=lf
@@ -53,4 +53,4 @@ CNAME    text eol=lf
 # into the digest list and signed. The README and LICENSE in there are
 # hub-owned text, but they ship in the package too, so they get the same
 # treatment as the manifest.
-agents/** -text
+bots/** -text

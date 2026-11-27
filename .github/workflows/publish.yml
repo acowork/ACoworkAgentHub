@@ -78,8 +78,8 @@ jobs:
             git clone --depth 1 --single-branch --branch master "https://github.com/$MAIN_REPO.git" ../main-repo
           fi
 
-      # The main repo's `agents/*` is the source of truth for the platform
-      # agents mirrored under agents/official/. Publishing a stale mirror
+      # The main repo's `bots/*` is the source of truth for the platform
+      # agents mirrored under bots/official/. Publishing a stale mirror
       # would ship packages the main repo has already replaced, so this is a
       # gate, not a notice: the mirror must match the commit it claims.
       - name: Fetch the commits the mirror claims
@@ -184,7 +184,7 @@ jobs:
       # manifest parser. A hub-only field that slipped into manifest.toml would
       # be silently dropped on clone — and the package would break.
       #
-      # ACOWORK_HUB_DIR points the guard at this checkout's agents/. Without it
+      # ACOWORK_HUB_DIR points the guard at this checkout's bots/. Without it
       # the guard cannot find its subject and fails — it never skips.
       - name: Interop check against the main repo
         env:

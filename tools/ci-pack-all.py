@@ -25,7 +25,7 @@ import signing  # noqa: E402
 
 
 def agent_dirs() -> list[Path]:
-    agents_root = REPO_ROOT / "agents"
+    agents_root = REPO_ROOT / "bots"
     if not agents_root.is_dir():
         return []
     found = []

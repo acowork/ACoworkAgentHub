@@ -22,16 +22,16 @@ use std::path::{Path, PathBuf};
 
 use acowork_core::manifest::{AgentManifest, SkillDecl};
 
-/// The hub repository's `agents/` directory.
+/// The hub repository's `bots/` directory.
 ///
 /// Resolution order:
-///   1. `ACOWORK_HUB_DIR` — an explicit path to the hub's `agents/` directory.
-///   2. `../ACoworkAgentHub/agents` relative to the main repo checkout.
+///   1. `ACOWORK_HUB_DIR` — an explicit path to the hub's `bots/` directory.
+///   2. `../ACoworkAgentHub/bots` relative to the main repo checkout.
 ///
 /// If neither exists the tests FAIL rather than skip. A guard that silently
 /// passes when it cannot find its subject is worse than no guard at all: it
 /// reports "the hub's packages are fine" while checking nothing.
-fn hub_agents_dir() -> PathBuf {
+fn hub_bots_dir() -> PathBuf {
     if let Ok(explicit) = std::env::var("ACOWORK_HUB_DIR") {
         let path = PathBuf::from(explicit);
         if path.is_dir() {
@@ -47,27 +47,27 @@ fn hub_agents_dir() -> PathBuf {
     let main_repo = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("..")
         .join("..");
-    let sibling = main_repo.join("..").join("ACoworkAgentHub").join("agents");
+    let sibling = main_repo.join("..").join("ACoworkAgentHub").join("bots");
     if sibling.is_dir() {
         return sibling;
     }
 
     panic!(
-        "cannot find the hub's agents/ directory — set ACOWORK_HUB_DIR, or check \
+        "cannot find the hub's bots/ directory — set ACOWORK_HUB_DIR, or check \
          out ACoworkAgentHub next to the main repo (looked in `{}`)",
         sibling.display()
     );
 }
 
-/// Every `agents/<owner>/<name>/manifest.toml` in the hub, skipping `_template`.
+/// Every `bots/<owner>/<name>/manifest.toml` in the hub, skipping `_template`.
 fn manifest_paths() -> Vec<PathBuf> {
-    let root = hub_agents_dir();
+    let root = hub_bots_dir();
     if !root.is_dir() {
         // The hub checkout is not next to the main repo — nothing to check.
         return Vec::new();
     }
     let mut out = Vec::new();
-    for owner in std::fs::read_dir(&root).expect("read hub agents/").flatten() {
+    for owner in std::fs::read_dir(&root).expect("read hub bots/").flatten() {
         if !owner.path().is_dir() {
             continue;
         }

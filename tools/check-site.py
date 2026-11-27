@@ -124,7 +124,7 @@ def build_fixture_site(real_site: Path, count: int, workdir: Path) -> Path:
             "--index", str(fixture_index),
             "--packages", str(pkgs),
             "--out", str(out),
-            "--agents", str(REPO_ROOT / "agents"),
+            "--agents", str(REPO_ROOT / "bots"),
         ],
         capture_output=True,
         text=True,

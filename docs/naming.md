@@ -3,17 +3,17 @@
 Short version: **one bot per directory, owner-namespaced, kebab-case
 everywhere, and the `agent_id` must be globally unique.**
 
-## Why `agents/<owner>/<name>/`
+## Why `bots/<owner>/<name>/`
 
-The obvious layout is `agents/<name>/`. We use `agents/<owner>/<name>/`
+The obvious layout is `bots/<name>/`. We use `bots/<owner>/<name>/`
 instead. Reasons, in order of weight:
 
-1. **Name squatting.** With a flat layout, `agents/code-review/` is taken by
+1. **Name squatting.** With a flat layout, `bots/code-review/` is taken by
    whoever submitted first, and the second person with a perfectly good
    `code-review` bot has to pick a worse name. Namespacing by owner makes
    collisions structurally impossible — two people can both have a
    `research-agent`.
-2. **Discoverability.** `agents/github.com/octocat/…`-style ownership is
+2. **Discoverability.** `bots/github.com/octocat/…`-style ownership is
    visible in the directory tree, so a reader can tell at a glance who
    maintains what, and can filter the index by owner.
 3. **Ownership transfer.** If a maintainer hands a bot to another person,
@@ -31,7 +31,7 @@ every good name.
 ## Directory rules
 
 ```
-agents/
+bots/
 ├── _template/                # authoring template, never indexed
 └── <owner>/
     └── <name>/
@@ -80,12 +80,12 @@ agents/
   claimed by accident or on purpose.
 
   The platform's own bots are published here too, under
-  `agents/official/`, keeping their original `com.acowork.*` ids — so an
+  `bots/official/`, keeping their original `com.acowork.*` ids — so an
   installed package stays upgradeable instead of forking into a second,
   differently-named bot. That exemption is narrow and explicit:
 
   - only the publisher id `acowork:official` may use a reserved prefix,
-  - only under the `agents/official/` directory,
+  - only under the `bots/official/` directory,
   - and only for an `agent_id` already listed in
     [`registry/official-publishers.json`](../registry/official-publishers.json).
 
@@ -105,7 +105,7 @@ agents/
 
 Rules: the scheme is lowercase; the value is 2–64 characters; the value must
 not contain whitespace. The handle lives in `hub.json`, not in the manifest,
-and the hub requires it to match the `agents/<owner>/` directory segment — a
+and the hub requires it to match the `bots/<owner>/` directory segment — a
 submission may only publish under its own account.
 
 The handle is a **provenance record**: who to contact, whose account it is,

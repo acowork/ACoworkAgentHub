@@ -10,7 +10,7 @@ Closes #
 
 | Field | Value |
 |---|---|
-| Agent directory | `agents/<owner>/<name>/` |
+| Agent directory | `bots/<owner>/<name>/` |
 | `agent_id` | |
 | Category | |
 | Tier (capability) | |

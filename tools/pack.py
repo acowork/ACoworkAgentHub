@@ -12,8 +12,8 @@ package and therefore inside the digest list — so the signature covers it
 without any format change. See docs/trust-model.md.
 
 Usage:
-    python tools/pack.py agents/<owner>/<name> --out build/
-    python tools/pack.py agents/<owner>/<name> --out build/ --key .keys/registry.key
+    python tools/pack.py bots/<owner>/<name> --out build/
+    python tools/pack.py bots/<owner>/<name> --out build/ --key .keys/registry.key
     python tools/pack.py --verify build/<agent_id>.bot
 
 Exit codes:

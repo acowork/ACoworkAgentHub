@@ -309,7 +309,7 @@ def main() -> int:
     ap.add_argument("--index", required=True, help="path to the generated index.json")
     ap.add_argument("--packages", required=True, help="directory holding the signed .bot packages")
     ap.add_argument("--agents", default=None,
-                    help="agents/ directory (default: the repo's agents/) — used to resolve avatar files")
+                    help="bots/ directory (default: the repo's bots/) — used to resolve avatar files")
     ap.add_argument("--out", required=True, help="output directory for the deployable site")
     ap.add_argument("--registry-digest", default=None,
                     help="registry.digest.json, to record which registry content this site serves")
@@ -318,7 +318,7 @@ def main() -> int:
     index_path = Path(args.index)
     packages_dir = Path(args.packages)
     out_dir = Path(args.out)
-    agents_dir = Path(args.agents) if args.agents else REPO_ROOT / "agents"
+    agents_dir = Path(args.agents) if args.agents else REPO_ROOT / "bots"
 
     if not index_path.is_file():
         print(f"[build-site] FATAL: {index_path} not found. Exit 2", file=sys.stderr)

@@ -49,8 +49,8 @@ jobs:
             git clone --depth 1 --single-branch --branch master "https://github.com/$MAIN_REPO.git" ../main-repo
           fi
 
-      # The main repo's `agents/*` is the source of truth for the platform
-      # agents mirrored under agents/official/. Two different questions are
+      # The main repo's `bots/*` is the source of truth for the platform
+      # agents mirrored under bots/official/. Two different questions are
       # asked here, deliberately, because collapsing them into one makes the
       # alarm red for every unrelated upstream commit until someone disables
       # it:
@@ -127,7 +127,7 @@ jobs:
       # a mirror can drift. Only the main repo's real parser can settle
       # whether a package would install, so the guard runs there.
       #
-      # ACOWORK_HUB_DIR points the guard at this checkout's agents/. Without
+      # ACOWORK_HUB_DIR points the guard at this checkout's bots/. Without
       # it the guard cannot find its subject and fails — it never skips.
       - name: Interop check against the main repo
         env:

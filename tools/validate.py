@@ -15,7 +15,7 @@ Checks, in order of cost:
 
 Usage:
     python tools/validate.py                 # validate every agent
-    python tools/validate.py agents/foo/bar  # validate specific directories
+    python tools/validate.py bots/foo/bar  # validate specific directories
     python tools/validate.py --strict        # also fail on warnings
 
 Exit codes:
@@ -39,9 +39,9 @@ except ModuleNotFoundError:
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_DIR = REPO_ROOT / "schema"
-AGENTS_DIR = REPO_ROOT / "agents"
+AGENTS_DIR = REPO_ROOT / "bots"
 
-#: Directories under agents/ that are not agents.
+#: Directories under bots/ that are not agents.
 TEMPLATE_DIRS = {"_template"}
 
 OWNER_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$")
@@ -85,7 +85,7 @@ def load_toml(path: Path, where: str, report: Report) -> dict | None:
 
 
 def discover_agent_dirs() -> list[Path]:
-    """All agent directories: agents/<owner>/<name>/ (one level of owner)."""
+    """All agent directories: bots/<owner>/<name>/ (one level of owner)."""
     if not AGENTS_DIR.is_dir():
         return []
     found = []
@@ -307,7 +307,7 @@ OFFICIAL_PUBLISHER_ID = "acowork:official"
 
 def check_layout(agent_dir: Path, owner: str, name: str, manifest: dict | None,
                  hub: dict | None, report: Report, is_template: bool = False) -> None:
-    where = f"agents/{owner}/{name}"
+    where = f"bots/{owner}/{name}"
 
     if not is_template:
         if not OWNER_RE.match(owner):
@@ -429,12 +429,12 @@ def check_official_claim(manifest: dict | None, hub: dict | None, owner: str,
         report.error(
             where,
             f"publisher.id `{official_publisher}` may only publish under "
-            f"`agents/{official_owner}/` - this package lives under `agents/{owner}/`",
+            f"`bots/{official_owner}/` - this package lives under `bots/{owner}/`",
         )
     if lives_in_official_dir and not claims_official:
         report.error(
             where,
-            f"`agents/{official_owner}/` is reserved for the official channel - "
+            f"`bots/{official_owner}/` is reserved for the official channel - "
             f"this package must declare publisher.id `{official_publisher}`",
         )
     if claims_official and manifest is not None:
@@ -480,7 +480,7 @@ def validate_agent_dir(agent_dir: Path, schema: dict, hub_schema: dict,
                        catalog: dict, report: Report) -> None:
     owner = agent_dir.parent.name
     name = agent_dir.name
-    where = f"agents/{owner}/{name}"
+    where = f"bots/{owner}/{name}"
 
     manifest = load_toml(agent_dir / "manifest.toml", where, report)
     if manifest is not None:
@@ -506,7 +506,7 @@ def main() -> None:
     ap.add_argument("paths", nargs="*", help="agent directories to validate (default: all)")
     ap.add_argument("--strict", action="store_true", help="treat warnings as errors")
     ap.add_argument("--check-template", action="store_true",
-                    help="also validate agents/_template (relaxed: template placeholders allowed)")
+                    help="also validate bots/_template (relaxed: template placeholders allowed)")
     args = ap.parse_args()
 
     schema = load_json(SCHEMA_DIR / "manifest.schema.json")

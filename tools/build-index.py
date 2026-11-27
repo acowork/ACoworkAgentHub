@@ -56,7 +56,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 #: The index is stamped with the commit that built it, not with the wall clock,
 #: so two builds of the same commit produce the same bytes.
 BUILD_EPOCH, BUILD_EPOCH_ORIGIN = buildtime.resolve_epoch(REPO_ROOT)
-AGENTS_DIR = REPO_ROOT / "agents"
+AGENTS_DIR = REPO_ROOT / "bots"
 CATALOG_PATH = REPO_ROOT / "schema" / "catalog.json"
 
 SCHEMA_VERSION = 2
@@ -89,7 +89,7 @@ def read_skills(agent_dir: Path) -> list[str]:
 
 
 def discover_agent_dirs() -> list[Path]:
-    """agents/<owner>/<name>/ — the _template directory is never indexed."""
+    """bots/<owner>/<name>/ — the _template directory is never indexed."""
     if not AGENTS_DIR.is_dir():
         return []
     found = []
@@ -216,7 +216,7 @@ def build_entry(agent_dir: Path, catalog: dict, packages_dir: Path | None) -> di
         **({"homepage": hub["homepage"]} if hub.get("homepage") else {}),
         "source": {
             "owner": owner,
-            "path": f"agents/{owner}/{name}",
+            "path": f"bots/{owner}/{name}",
         },
     }
     if hub.get("deprecated"):
@@ -228,7 +228,7 @@ def build_entry(agent_dir: Path, catalog: dict, packages_dir: Path | None) -> di
     if pkg_path is None or not pkg_path.is_file():
         fail(
             f"{owner}/{name}: signed package {m['agent_id']}.bot not found in {packages_dir}. "
-            f"Build it first: python tools/pack.py agents/{owner}/{name} --out {packages_dir}"
+            f"Build it first: python tools/pack.py bots/{owner}/{name} --out {packages_dir}"
         )
 
     payload = pkg_path.read_bytes()

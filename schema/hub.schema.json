@@ -9,7 +9,7 @@
   "properties": {
     "publisher": {
       "type": "object",
-      "description": "Who published this agent to the hub. This is the hub's ACCOUNT identity, and it must match the owner directory in this repository — the hub rejects a submission whose publisher id does not match the `agents/<owner>/` path segment. It is a provenance record (who to contact, who to revoke), NOT a trust or endorsement claim.",
+      "description": "Who published this agent to the hub. This is the hub's ACCOUNT identity, and it must match the owner directory in this repository — the hub rejects a submission whose publisher id does not match the `bots/<owner>/` path segment. It is a provenance record (who to contact, who to revoke), NOT a trust or endorsement claim.",
       "required": ["id"],
       "additionalProperties": false,
       "properties": {
@@ -56,7 +56,7 @@
         },
         "source_path": {
           "type": "string",
-          "description": "Directory in the upstream repository this package is copied from, e.g. `agents/product-manager-agent`."
+          "description": "Directory in the upstream repository this package is copied from, e.g. `bots/product-manager-bot`."
         },
         "source_commit": {
           "type": "string",

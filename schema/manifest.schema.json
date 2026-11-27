@@ -2,7 +2,7 @@
   "$comment": "JSON Schema for the `manifest.toml` of an agent package, mirroring the main repo's `acowork_core::AgentManifest` (core/acowork-core/src/manifest.rs). This file is a MIRROR, not an invention: every property here exists in the main repo with the same name, type and constraint. Community-specific metadata does NOT live here — it lives in `hub.json` (see schema/hub.schema.json), because the main repo re-serialises the parsed manifest on clone/upgrade and would silently drop unknown top-level fields.",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Agent package manifest.toml",
-  "description": "Schema for agents/<owner>/<name>/manifest.toml, parsed from TOML into JSON before validation. This is a faithful mirror of the main repo's AgentManifest; it must not drift from it.",
+  "description": "Schema for bots/<owner>/<name>/manifest.toml, parsed from TOML into JSON before validation. This is a faithful mirror of the main repo's AgentManifest; it must not drift from it.",
   "type": "object",
   "required": [
     "agent_id",

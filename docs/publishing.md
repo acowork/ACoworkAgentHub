@@ -345,10 +345,10 @@ their original `com.acowork.*` ids rather than a re-minted namespace, so a
 package installed from the main repo's bot sources stays upgradeable from
 this registry instead of forking into a second, differently-named bot.
 
-The source of truth for those bots is the main repo's `agents/<name>-agent/`:
+The source of truth for those bots is the main repo's `bots/<name>-bot/`:
 `tools/sync-official.py` mirrors them here byte for byte and records the
 upstream commit in each package's `hub.json.mirror.source_commit`. So "the hub
-serves them" does not mean "the hub owns them" — and `agents/official/**` is a
+serves them" does not mean "the hub owns them" — and `bots/official/**` is a
 generated area that no PR may edit by hand.
 
 The commit claim is what makes the check worth having. Comparing the mirror

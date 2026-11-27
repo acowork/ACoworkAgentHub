@@ -163,7 +163,7 @@ def build_digest_doc(packages_dir: Path | None, key_path: Path | None) -> dict:
 
     builder, builder_files = builder_digest()
     agents: dict[str, dict] = {}
-    for agent_dir in agent_dirs(REPO_ROOT / "agents"):
+    for agent_dir in agent_dirs(REPO_ROOT / "bots"):
         manifest = tomllib.loads((agent_dir / "manifest.toml").read_text(encoding="utf-8"))
         agent_id = manifest.get("agent_id")
         if not agent_id:

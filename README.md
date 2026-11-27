@@ -9,24 +9,24 @@ not on a PR branch.
 ## Why this repo exists
 
 The ACowork main repo ships a handful of first-party bots under
-`agents/<name>-agent/`. Those are the upstream source of truth and they are
+`bots/<name>-bot/`. Those are the upstream source of truth and they are
 built and signed by the main repo's release pipeline.
 
 This repo is the **community counterpart**:
 
-| | Main repo (`agents/<name>-agent/`) | This repo (`agents/<owner>/<name>`) |
+| | Main repo (`bots/<name>-bot/`) | This repo (`bots/<owner>/<name>`) |
 |---|---|---|
 | Authors | ACowork core team | community contributors |
 | Directory | flat, one dir per bot | owner-namespaced, one dir per bot |
 | Provenance | built in-repo, signed by platform keys | built in CI, signed by the channel key |
 | Index | built by the main repo | `index.json` for the community registry |
 
-The platform's own bots are mirrored here under `agents/official/`, keeping
+The platform's own bots are mirrored here under `bots/official/`, keeping
 their original `com.acowork.*` ids, so an installed package stays
 upgradeable instead of forking into a second, differently-named bot. The
 main repo remains their source of truth.
 
-**`agents/official/` is a generated directory.** `tools/sync-official.py`
+**`bots/official/` is a generated directory.** `tools/sync-official.py`
 writes it, byte for byte, from a named commit in the main repo, and records
 that commit in each package's `hub.json`. Nothing in it is hand-edited: the
 next sync overwrites the edit, and CI fails on it before that happens. A
@@ -82,7 +82,7 @@ ACoworkAgentHub/
 │   ├── hub.schema.json        # hub-only metadata
 │   ├── agent.schema.json      # one index.json entry
 │   └── catalog.json           # hub's categories + the label -> category map
-├── agents/
+├── bots/
 │   ├── _template/                      # authoring template, not indexed
 │   ├── official/<name>/                # the platform's own agents
 │   └── <owner>/<name>/
@@ -105,7 +105,7 @@ ACoworkAgentHub/
 
 ```bash
 # 1. copy the template
-cp -r agents/_template agents/<your-handle>/<your-agent-name>
+cp -r bots/_template bots/<your-handle>/<your-agent-name>
 
 # 2. edit manifest.toml (contract: schema/manifest.schema.json)
 #    and hub.json (contract: schema/hub.schema.json)
@@ -114,7 +114,7 @@ cp -r agents/_template agents/<your-handle>/<your-agent-name>
 python tools/validate.py
 
 # 4. build a signed package + the index (needs an Ed25519 key)
-python tools/pack.py agents/<owner>/<name> --out build/ --key .keys/dev.key
+python tools/pack.py bots/<owner>/<name> --out build/ --key .keys/dev.key
 python tools/build-index.py --out build/index.json --packages build/
 
 # 5. verify what you built
@@ -145,7 +145,7 @@ Details: [docs/catalog.md](docs/catalog.md).
 
 ## How publishing works
 
-1. You open a PR adding `agents/<owner>/<name>/`.
+1. You open a PR adding `bots/<owner>/<name>/`.
 2. `validate.yml` runs schema validation, packaging, a signature smoke test,
    the main repo's own manifest parser over your package, and a headless
    browser check of the site it produces.

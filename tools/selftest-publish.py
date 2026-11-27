@@ -260,7 +260,7 @@ def _load_tool(name: str):
 def packable_agent_dirs(root: Path) -> list[Path]:
     """The agent directories `ci-pack-all.py` would actually pack, in the fixture.
 
-    Its two-level rule (`agents/<owner>/<name>/`) is what excludes the submission
+    Its two-level rule (`bots/<owner>/<name>/`) is what excludes the submission
     template. Re-implementing it here would mean the test measures a directory
     set the pipeline does not use, and every count below would be off by the
     number of templates in the tree.

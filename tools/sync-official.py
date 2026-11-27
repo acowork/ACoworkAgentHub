@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """Mirror the platform's own agents from the main repo into this repository.
 
-The main repo's `agents/<name>-agent/` is the single source of truth for the
+The main repo's `bots/<name>-bot/` is the single source of truth for the
 platform agents. This script projects those directories into
-`agents/official/<name>/` (and the one community package into
-`agents/dietrichgebert/<name>/`) byte for byte, so the hub publishes exactly
+`bots/official/<name>/` (and the one community package into
+`bots/dietrichgebert/<name>/`) byte for byte, so the hub publishes exactly
 what the app ships, under the same `agent_id` — an installed package stays
 upgradeable instead of forking into a second, differently-named agent.
 
-THE MIRROR IS GENERATED. Never hand-edit `agents/official/**`: the next sync
+THE MIRROR IS GENERATED. Never hand-edit `bots/official/**`: the next sync
 overwrites you, and `--check` turns your edit red before then. A content
 change belongs in the main repo; a hub-only change belongs in the files this
 script owns (`hub.json`, `README.md`, `LICENSE` are all generated here too).
@@ -18,7 +18,7 @@ Every mirrored package records what it claims to be a copy of, in
 
     "mirror": {
       "source_repo":    "acowork/ACowork",
-      "source_path":    "agents/product-manager-agent",
+      "source_path":    "bots/product-manager-bot",
       "source_commit":  "<full sha the bytes were copied from>"
     }
 
@@ -70,29 +70,32 @@ except ModuleNotFoundError:
 REPO_ROOT = Path(__file__).resolve().parents[1]
 OFFICIAL_PUBLISHER = "acowork:official"
 
-#: Where the agent sources live in the main repo, and what the repo's own
-#: license file is called — the two paths this script needs from upstream.
-SOURCE_DIRNAME = "agents"
+#: Where the bot sources live in the main repo, and what the repo's own license
+#: file is called — the two paths this script needs from upstream. The main repo
+#: renamed `bots/<name>-bot/` to `bots/<name>-bot/`; both spellings are read
+#: so a mirror can be produced from a commit on either side of that rename.
+SOURCE_ROOTNAMES = ("bots", "agents")
+DIR_SUFFIXES = ("-bot", "-agent")
 LICENSE_FILENAME = "LICENSE"
 
 #: The main repo's agent directories, and the hub directory each maps to.
 #: An explicit whitelist, not a glob: a new directory in the main repo must
 #: not become a published package by accident.
 MAIN_TO_HUB_NAME = {
-    "android-node-agent": "android-node",
-    "document-manager-agent": "document-manager",
-    "product-manager-agent": "product-manager",
-    "project-manager-agent": "project-manager",
-    "quality-assurance-agent": "quality-assurance",
-    "senior-engineer-agent": "senior-engineer",
-    "software-architect-agent": "software-architect",
-    "ponytail-agent": "ponytail",
+    "android-node-bot": "android-node",
+    "document-manager-bot": "document-manager",
+    "product-manager-bot": "product-manager",
+    "project-manager-bot": "project-manager",
+    "quality-assurance-bot": "quality-assurance",
+    "senior-engineer-bot": "senior-engineer",
+    "software-architect-bot": "software-architect",
+    "ponytail-bot": "ponytail",
 }
 
 #: `ponytail` is a community contribution that happens to live in the main
 #: repo. It is published under its author's own account, not as a platform
 #: agent, so the hub never claims it.
-COMMUNITY_PACKAGES = {"ponytail-agent"}
+COMMUNITY_PACKAGES = {"ponytail-bot"}
 
 #: The manifest author string that marks a package as the platform's own.
 PLATFORM_AUTHOR = "ACowork Team"
@@ -147,7 +150,7 @@ def fail(msg: str, code: int = 1) -> None:
 
 
 def hub_owner_dir(pkg: str) -> str:
-    """Which `agents/<owner>/` a mirrored package belongs under."""
+    """Which `bots/<owner>/` a mirrored package belongs under."""
     return "dietrichgebert" if pkg in COMMUNITY_PACKAGES else "official"
 
 
@@ -178,13 +181,49 @@ def resolve_ref(main_repo: Path, ref: str) -> str:
     return out.stdout.strip()
 
 
-def materialize(main_repo: Path, sha: str, tmp_root: Path) -> Path:
+def source_dirs_at(main_repo: Path, sha: str) -> dict[str, str]:
+    """`whitelist key -> its path in the main repo at `sha``, across the rename.
+
+    A key names the current spelling (`bots/<name>-bot`); a commit from before
+    the rename spells the same package `<name>-agent`, so the suffix is probed
+    as well. Directories outside the whitelist are never picked up.
+    """
+    listing: set[str] = set()
+    for root in SOURCE_ROOTNAMES:
+        out = git(main_repo, "ls-tree", "-d", "--name-only", sha, "--", f"{root}/")
+        if out.returncode == 0:
+            listing.update(line.strip().rstrip("/") for line in out.stdout.splitlines())
+
+    found: dict[str, str] = {}
+    for key in MAIN_TO_HUB_NAME:
+        stem = key[: -len("-bot")] if key.endswith("-bot") else key
+        for root in SOURCE_ROOTNAMES:
+            for suffix in DIR_SUFFIXES:
+                candidate = f"{root}/{stem}{suffix}"
+                if candidate in listing:
+                    found[key] = candidate
+                    break
+            if key in found:
+                break
+    if not found:
+        fail(
+            f"none of the whitelisted packages exist at {sha[:12]} under "
+            f"{' or '.join(f'{r}/<name>{s}' for r in SOURCE_ROOTNAMES for s in DIR_SUFFIXES)} "
+            "— the whitelist and the main repo disagree"
+        )
+    return found
+
+
+def materialize(main_repo: Path, sha: str, tmp_root: Path) -> tuple[Path, dict[str, str]]:
     """Export the paths this script needs at commit `sha` into `tmp_root`.
 
     `git archive` gives a clean tree of exactly those paths, so neither the
     main repo's working tree nor its build artifacts can influence a mirror.
+    Returns the exported tree and, per whitelist key, the path it came from —
+    which is what the generated `hub.json` records as the source.
     """
-    paths = [LICENSE_FILENAME] + [f"{SOURCE_DIRNAME}/{pkg}" for pkg in MAIN_TO_HUB_NAME]
+    dirs = source_dirs_at(main_repo, sha)
+    paths = [LICENSE_FILENAME] + list(dirs.values())
     out = subprocess.run(
         ["git", "-C", str(main_repo), "archive", "--format=tar", sha, *paths],
         capture_output=True,
@@ -198,7 +237,7 @@ def materialize(main_repo: Path, sha: str, tmp_root: Path) -> Path:
     dest.mkdir(parents=True, exist_ok=True)
     with tarfile.open(fileobj=io.BytesIO(out.stdout)) as tar:
         tar.extractall(path=dest, filter="data")
-    return dest
+    return dest, dirs
 
 
 def recorded_claim(target: Path) -> str | None:
@@ -213,7 +252,7 @@ def recorded_claim(target: Path) -> str | None:
     return (hub.get("mirror") or {}).get("source_commit")
 
 
-def build_hub_json(manifest: dict, pkg: str, source_commit: str) -> str:
+def build_hub_json(manifest: dict, source_path: str, source_commit: str) -> str:
     """The hub-owned metadata for a mirrored package.
 
     The platform's own agents carry the main repo's Apache-2.0; the community
@@ -243,13 +282,13 @@ def build_hub_json(manifest: dict, pkg: str, source_commit: str) -> str:
         }
     hub["mirror"] = {
         "source_repo": SOURCE_REPO,
-        "source_path": f"{SOURCE_DIRNAME}/{pkg}",
+        "source_path": source_path,
         "source_commit": source_commit,
     }
     return json.dumps(hub, indent=2, ensure_ascii=False) + "\n"
 
 
-def build_readme(manifest: dict, pkg: str, source_dir: Path) -> str:
+def build_readme(manifest: dict, source_path: str, source_dir: Path) -> str:
     """The hub-owned README for a mirrored package.
 
     The skill list is read from the SOURCE tree, not from the mirror: the
@@ -303,8 +342,8 @@ def build_readme(manifest: dict, pkg: str, source_dir: Path) -> str:
     L.append(f"- **Version**: `{manifest['version']}`")
     L.append(f"- **Author**: {manifest.get('author', '')}")
     L.append(
-        f"- **Source**: [`{SOURCE_DIRNAME}/{pkg}`]"
-        f"({SOURCE_REPO_URL}/tree/master/{SOURCE_DIRNAME}/{pkg}) "
+        f"- **Source**: [`{source_path}`]"
+        f"({SOURCE_REPO_URL}/tree/master/{source_path}) "
         "in the ACowork main repo"
     )
     L.append(f"- **License**: {'Apache-2.0' if official else 'MIT'}")
@@ -326,7 +365,12 @@ def build_readme(manifest: dict, pkg: str, source_dir: Path) -> str:
 
 
 def sync_one(
-    src_root: Path, pkg: str, hub_name: str, check_only: bool, source_commit: str
+    src_root: Path,
+    pkg: str,
+    source_path: str,
+    hub_name: str,
+    check_only: bool,
+    source_commit: str,
 ) -> list[Diff]:
     """Mirror one package. Returns the differences found, tagged by kind.
 
@@ -339,9 +383,9 @@ def sync_one(
     run and teach everyone to ignore it.
     """
     diffs: list[Diff] = []
-    pkg_dir = src_root / SOURCE_DIRNAME / pkg
+    pkg_dir = src_root / source_path
     owner = hub_owner_dir(pkg)
-    target = REPO_ROOT / "agents" / owner / hub_name
+    target = REPO_ROOT / "bots" / owner / hub_name
 
     manifest = read_manifest(pkg_dir / "manifest.toml")
     official = manifest.get("author") == PLATFORM_AUTHOR
@@ -375,8 +419,8 @@ def sync_one(
             handle(path, target / rel)
 
     # 2. the hub-owned files, and the claim they carry
-    hub_json = build_hub_json(manifest, pkg, source_commit)
-    readme = build_readme(manifest, pkg, pkg_dir)
+    hub_json = build_hub_json(manifest, source_path, source_commit)
+    readme = build_readme(manifest, source_path, pkg_dir)
     handle_owned("hub.json", hub_json)
     handle_owned("README.md", readme)
 
@@ -423,7 +467,7 @@ def claims() -> list[str]:
     """The distinct commits the hub currently claims to mirror."""
     found: list[str] = []
     for pkg, hub_name in MAIN_TO_HUB_NAME.items():
-        claim = recorded_claim(REPO_ROOT / "agents" / hub_owner_dir(pkg) / hub_name)
+        claim = recorded_claim(REPO_ROOT / "bots" / hub_owner_dir(pkg) / hub_name)
         if claim and claim not in found:
             found.append(claim)
     return found
@@ -474,27 +518,30 @@ def main() -> int:
         # One ref can be shared by every package (a sync run); per-package
         # claims are the norm once only some agents were re-synced.
         default_ref = args.main_ref
-        per_ref_cache: dict[str, Path] = {}
+        per_ref_cache: dict[str, tuple[Path, dict[str, str]]] = {}
 
         for pkg, hub_name in sorted(MAIN_TO_HUB_NAME.items()):
             owner = hub_owner_dir(pkg)
-            rel = f"agents/{owner}/{hub_name}"
-            target = REPO_ROOT / "agents" / owner / hub_name
+            rel = f"bots/{owner}/{hub_name}"
+            target = REPO_ROOT / "bots" / owner / hub_name
 
             ref = default_ref or recorded_claim(target) or "HEAD"
             sha = resolve_ref(main_repo, ref)
             if sha not in per_ref_cache:
                 per_ref_cache[sha] = materialize(main_repo, sha, tmp)
-            src_root = per_ref_cache[sha]
+            src_root, source_dirs = per_ref_cache[sha]
 
-            if not (src_root / SOURCE_DIRNAME / pkg / "manifest.toml").is_file():
+            source_path = source_dirs.get(pkg)
+            if source_path is None or not (
+                src_root / source_path / "manifest.toml"
+            ).is_file():
                 fail(
-                    f"{pkg} is in MAIN_TO_HUB_NAME but has no manifest.toml at "
-                    f"{SOURCE_DIRNAME}/{pkg} in {sha[:12]} — the whitelist and the "
-                    "main repo disagree, and guessing here would publish nothing"
+                    f"{pkg} is in MAIN_TO_HUB_NAME but has no manifest.toml in "
+                    f"{sha[:12]} — the whitelist and the main repo disagree, and "
+                    "guessing here would publish nothing"
                 )
 
-            diffs = sync_one(src_root, pkg, hub_name, args.check, sha)
+            diffs = sync_one(src_root, pkg, source_path, hub_name, args.check, sha)
             if diffs:
                 all_diffs.extend(f"{rel}: {d.text}" for d in diffs)
                 if any(d.kind == "package" for d in diffs):
