@@ -175,7 +175,7 @@ real parser can say whether a package would install.
 git clone --depth 1 https://github.com/acowork/ACowork ../main-repo
 cp tools/interop-test/main_repo_interop.rs ../main-repo/core/acowork-core/tests/hub_interop.rs
 cd ../main-repo/core
-ACOWORK_HUB_DIR=$PWD/../../ACoworkAgentHub/agents cargo test -p acowork-core --test hub_interop
+ACOWORK_HUB_DIR=$PWD/../../ACoworkBotHub/bots cargo test -p acowork-core --test hub_interop
 ```
 
 `ACOWORK_HUB_DIR` is not optional: the guard **fails** rather than skipping when

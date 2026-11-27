@@ -26,7 +26,7 @@ use acowork_core::manifest::{AgentManifest, SkillDecl};
 ///
 /// Resolution order:
 ///   1. `ACOWORK_HUB_DIR` — an explicit path to the hub's `bots/` directory.
-///   2. `../ACoworkAgentHub/bots` relative to the main repo checkout.
+///   2. `../ACoworkBotHub/bots` relative to the main repo checkout.
 ///
 /// If neither exists the tests FAIL rather than skip. A guard that silently
 /// passes when it cannot find its subject is worse than no guard at all: it
@@ -47,14 +47,14 @@ fn hub_bots_dir() -> PathBuf {
     let main_repo = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("..")
         .join("..");
-    let sibling = main_repo.join("..").join("ACoworkAgentHub").join("bots");
+    let sibling = main_repo.join("..").join("ACoworkBotHub").join("bots");
     if sibling.is_dir() {
         return sibling;
     }
 
     panic!(
         "cannot find the hub's bots/ directory — set ACOWORK_HUB_DIR, or check \
-         out ACoworkAgentHub next to the main repo (looked in `{}`)",
+         out ACoworkBotHub next to the main repo (looked in `{}`)",
         sibling.display()
     );
 }

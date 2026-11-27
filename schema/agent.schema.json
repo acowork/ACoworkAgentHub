@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://acowork.dev/schemas/agent.schema.json",
-  "title": "ACoworkAgentHub index entry",
+  "title": "ACoworkBotHub index entry",
   "description": "One entry of the generated index.json. The field names are intentionally aligned with the main repo's dev/common/sync-agent-hub.py output so the website pipeline can consume both without special-casing. Differences from the platform index: `category` is DERIVED from the package's labels through the hub's label->category map (the platform derives it from `role`), and the hub adds `labels`, `license`, `repository` and `deprecated`. The platform has no `tier` field and neither does this.",
   "type": "object",
   "required": [

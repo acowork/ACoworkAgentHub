@@ -1,7 +1,7 @@
 {
-  "$comment": "JSON Schema for `hub.json`, the ACoworkAgentHub-specific metadata file that sits NEXT TO `manifest.toml` inside a community agent package. Rationale for a separate file: the main repo re-serialises the parsed manifest on clone/upgrade (`AgentManifest::to_toml`), and serde drops unknown top-level fields — so hub-only fields written into manifest.toml would be silently lost the first time a user clones the agent. A separate file is ignored by the main repo and survives untouched. Every field below earns its place by answering a question the hub must answer; nothing here is decoration.",
+  "$comment": "JSON Schema for `hub.json`, the ACoworkBotHub-specific metadata file that sits NEXT TO `manifest.toml` inside a community agent package. Rationale for a separate file: the main repo re-serialises the parsed manifest on clone/upgrade (`AgentManifest::to_toml`), and serde drops unknown top-level fields — so hub-only fields written into manifest.toml would be silently lost the first time a user clones the agent. A separate file is ignored by the main repo and survives untouched. Every field below earns its place by answering a question the hub must answer; nothing here is decoration.",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "ACoworkAgentHub community metadata",
+  "title": "ACoworkBotHub community metadata",
   "description": "Hub-only metadata for a community agent package. The main repo ignores this file entirely.",
   "type": "object",
   "required": ["publisher", "license", "repository"],

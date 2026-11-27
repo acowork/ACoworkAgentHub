@@ -345,7 +345,7 @@ def main() -> None:
         "schema_version": SCHEMA_VERSION,
         "generated_at": buildtime.utc_stamp(BUILD_EPOCH),
         "source": {
-            "repository": args.repo or "https://github.com/acowork/ACoworkAgentHub",
+            "repository": args.repo or "https://github.com/acowork/ACoworkBotHub",
             "commit": git_ref(REPO_ROOT),
         },
         "counts": {

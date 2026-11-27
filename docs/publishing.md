@@ -158,7 +158,7 @@ script, the real shell, the real flags.
 | Output | Where it goes | What it is |
 |---|---|---|
 | the site | `hub.acowork.ai` (Cloudflare Pages) | the page, the shards, and every `.bot` package under `downloads/` |
-| the rolling Release | `github.com/acowork/ACoworkAgentHub/releases/tag/latest` | the same snapshot for machine consumers: `index.json`, `*.bot`, `SHA256SUMS`, `registry.digest.json` |
+| the rolling Release | `github.com/acowork/ACoworkBotHub/releases/tag/latest` | the same snapshot for machine consumers: `index.json`, `*.bot`, `SHA256SUMS`, `registry.digest.json` |
 
 There is **one** release, `latest`, updated in place. Earlier this workflow
 created a dated release per publish (`v2026-10-30-<sha>`), each carrying every

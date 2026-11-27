@@ -27,7 +27,7 @@ import sys
 import urllib.request
 
 BASE = "https://hub.acowork.ai"
-RELEASE_API = "https://api.github.com/repos/acowork/ACoworkAgentHub/releases/latest"
+RELEASE_API = "https://api.github.com/repos/acowork/ACoworkBotHub/releases/latest"
 
 failures: list[str] = []
 

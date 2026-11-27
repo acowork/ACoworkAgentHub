@@ -1,4 +1,4 @@
-# ACoworkAgentHub
+# ACoworkBotHub
 
 Community bot registry for ACowork, and the source of
 **hub.acowork.ai**. One directory per bot; every binary artifact
@@ -71,7 +71,7 @@ Full rationale: [docs/package-contract.md](docs/package-contract.md).
 ## Layout
 
 ```
-ACoworkAgentHub/
+ACoworkBotHub/
 ├── README.md / CONTRIBUTING.md / CODE_OF_CONDUCT.md / SECURITY.md / LICENSE
 ├── .github/
 │   ├── workflows/{validate.yml,publish.yml,review-gate.yml}

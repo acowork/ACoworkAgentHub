@@ -1,5 +1,5 @@
 {
-  "$comment": "The ACoworkAgentHub browse taxonomy. This file is hub-local: the main repo has no `catalog` concept and does not need one. Categories are NOT declared in a package — they are DERIVED at index time by mapping the package's `labels` (ADR-104) onto a category via `label_categories` below. An agent's category is therefore a property of the hub's taxonomy plus the author's labels, and a label that appears in no mapping contributes to no category.",
+  "$comment": "The ACoworkBotHub browse taxonomy. This file is hub-local: the main repo has no `catalog` concept and does not need one. Categories are NOT declared in a package — they are DERIVED at index time by mapping the package's `labels` (ADR-104) onto a category via `label_categories` below. An agent's category is therefore a property of the hub's taxonomy plus the author's labels, and a label that appears in no mapping contributes to no category.",
   "schema_version": 2,
 
   "categories": {
